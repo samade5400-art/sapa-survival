@@ -1,0 +1,12 @@
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b7a3e;color:#111}
+#app{max-width:480px;margin:0 auto;min-height:100vh;background:repeating-linear-gradient(135deg,#ffd400 0 28px,#ffcc00 28px 56px);padding:14px}
+.panel{background:#fff;border:4px solid #111;border-radius:18px;padding:16px;box-shadow:6px 6px 0 #111;margin-bottom:14px}
+h1{margin:0;font-size:30px;line-height:1.05}h1 span{color:#0b7a3e}.sub{font-weight:600;margin:6px 0 12px}
+button{font:inherit;font-weight:800;font-size:17px;width:100%;padding:14px;margin:6px 0;border:3px solid #111;border-radius:14px;background:#0b7a3e;color:#fff;box-shadow:3px 3px 0 #111;cursor:pointer}
+button.alt{background:#fff;color:#111}button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #111}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.lang{width:auto;padding:6px 12px;font-size:14px;background:#111}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}.stat{font-size:13px;font-weight:700}.bar{height:10px;background:#eee;border:2px solid #111;border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:#0b7a3e}
+.stat.bad .bar i{background:#d33}.money{grid-column:1/3;font-size:22px;font-weight:900}
+.day{font-weight:900;font-size:20px}.emoji{font-size:54px;text-align:center}.card p{font-size:19px;font-weight:700;text-align:center}
+.fx{font-size:12px;opacity:.75;font-weight:600}.toast{font-weight:700;color:#0b7a3e;min-height:20px}
+.big{font-size:44px;font-weight:900;text-align:center;margin:6px 0}.center{text-align:center}
