@@ -61,3 +61,6 @@ Plain HTML/CSS/JS with no build step and no framework. Files: `index.html`, `sty
 5. **Day 5 – Daily mode + launch:** deploy on Netlify, post the link, and get viewers to share their Sapa Level.
 6. **Day 6 – Leaderboard:** Supabase, plus stopping cheaters.
 7. **Day 7 – Community cards:** viewers submit cards. Reveal the stats (plays, most-chosen choices) and what comes next.
+
+## v2 — Lagos World (Oct 2026)
+Root `index.html` + `world.js` + `world.css`: 2D top-down canvas life-sim across Yaba, VI, Lekki. v1 card game moved to `challenge/` (Sapa Challenge, opened from in-game phone); `events.js` shared.

@@ -1,10 +1,18 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Sapa Survival: 30 Days in Lagos</title>
-<meta name="description" content="Your ₦250,000 salary just landed. Survive 30 days of Lagos wahala — rent, danfo, owambe, family pressure. Free daily challenge, no login."><meta name="theme-color" content="#0b7a3e">
-<meta property="og:type" content="website"><meta property="og:title" content="Sapa Survival: 30 Days in Lagos"><meta property="og:description" content="Your ₦250,000 salary just landed. Survive 30 days of Lagos wahala — rent, danfo, owambe, family pressure. Free daily challenge, no login.">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Sapa Survival: Lagos World</title>
+<meta name="description" content="Walk a living Lagos: Yaba, VI and Lekki. Hustle tech, banking, trading or entertainment, eat amala, dodge NEPA, pay rent, upgrade from face-me-I-face-you to a Lekki flat. Free, no login, English + Pidgin."><meta name="theme-color" content="#0b7a3e">
+<meta property="og:type" content="website"><meta property="og:title" content="Sapa Survival: Lagos World"><meta property="og:description" content="Walk a living Lagos: Yaba, VI and Lekki. Hustle tech, banking, trading or entertainment, eat amala, dodge NEPA, pay rent, upgrade from face-me-I-face-you to a Lekki flat. Free, no login, English + Pidgin.">
 <meta property="og:image" content="https://samade5400-art.github.io/sapa-survival/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:url" content="https://samade5400-art.github.io/sapa-survival/">
-<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Sapa Survival: 30 Days in Lagos"><meta name="twitter:description" content="Your ₦250,000 salary just landed. Survive 30 days of Lagos wahala — rent, danfo, owambe, family pressure. Free daily challenge, no login."><meta name="twitter:image" content="https://samade5400-art.github.io/sapa-survival/og.png">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Sapa Survival: Lagos World"><meta name="twitter:description" content="Walk a living Lagos: Yaba, VI and Lekki. Hustle tech, banking, trading or entertainment, eat amala, dodge NEPA, pay rent, upgrade from face-me-I-face-you to a Lekki flat. Free, no login, English + Pidgin."><meta name="twitter:image" content="https://samade5400-art.github.io/sapa-survival/og.png">
 <link rel="icon" type="image/png" href="favicon.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Sapa Survival">
-<link rel="stylesheet" href="style.css"></head>
-<body><div id="app"></div><script src="events.js"></script><script src="game.js"></script></body></html>
+<link rel="stylesheet" href="world.css"></head>
+<body><canvas id="cv"></canvas>
+<div id="hud" class="hide"></div>
+<div id="joy"><i></i></div>
+<button id="act" class="hide"></button><button id="phoneBtn" class="hide" aria-label="Phone">📱</button>
+<div id="toast"></div>
+<div id="modal" class="ov hide"><div class="sheet" id="sheet"></div></div>
+<div id="phone" class="ov hide"><div class="ph"><div class="phTop"><b id="phTitle">📱</b><button class="x" id="phClose">✕</button></div><div class="tabs" id="tabs"></div><div id="phBody"></div></div></div>
+<div id="creator" class="ov"><div class="sheet" id="cr"></div></div>
+<script src="events.js"></script><script src="world.js"></script></body></html>
