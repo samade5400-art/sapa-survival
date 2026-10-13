@@ -97,7 +97,7 @@ export function makeNet(ctx){
    let dr=((p.ry-o.ry+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;o.ry+=dr*Math.min(1,dt*12);o.emT-=dt;
    const moving=o.spd>8||d>1.5||p.anim==='walk';if(moving)o.ph+=dt*11;const anim=moving?(o.spd>100?'run':'walk'):(o.emT>0?({dance:'dance',zanku:'dance',greet:'kneel',kneel:'kneel'})[o.em]||'wave':p.anim);
    const hidden=!!p.ins||!!IN||block.has(p.name);o.a.visible=!hidden;o.a.position.set(o.x*K,0,o.y*K);o.a.rotation.y=o.ry;R.animRemote(o.a,o.ph,anim,tm);
-   const sc=R.screen(o.x*K,2.25,o.y*K),far=Math.hypot(p.x-S.p.x,p.y-S.p.y)>700;o.np.style.display=hidden||!sc.vis||far?'none':'block';o.np.style.transform=`translate(${sc.x}px,${sc.y}px) translate(-50%,-100%)`});
+   const sc=R.screen(o.x*K,2.0,o.y*K),far=Math.hypot(p.x-S.p.x,p.y-S.p.y)>700;o.np.style.display=hidden||!sc.vis||far?'none':'block';o.np.style.transform=`translate(${sc.x}px,${sc.y}px) translate(-50%,-100%)`});
   remotes.forEach((o,id)=>{if(!seen.has(id)){R.removeRemote(o.a);o.np.remove();remotes.delete(id)}});
   for(let i=bubbles.length-1;i>=0;i--){const b=bubbles[i];b.t-=dt;let wx,wz;if(b.id===me){if(IN){b.el.style.display='none';if(b.t<=0){b.el.remove();bubbles.splice(i,1)}continue}wx=S.p.x;wz=S.p.y}else{const o=remotes.get(b.id);if(!o||!o.a.visible){b.t=Math.min(b.t,0)}else{wx=o.x;wz=o.y}}
    if(b.t<=0){b.el.remove();bubbles.splice(i,1);continue}const sc=R.screen(wx*K,2.8,wz*K);b.el.style.display=sc.vis?'block':'none';b.el.style.transform=`translate(${sc.x}px,${sc.y}px) translate(-50%,-100%)`;b.el.style.opacity=Math.min(1,b.t)}
