@@ -1,6 +1,6 @@
 // Naija Republic v5 — open-world Lagos life-sim. Three.js via importmap, no build step.
 import {R,K} from './r3d.js?v=7';
-import {makeNet} from './online.js?v=7';
+import {makeNet} from './online.js?v=8';
 import {makeAudio} from './audio.js?v=7';
 import {makeStory} from './story.js?v=7';
 import * as CT from './city.js?v=7';

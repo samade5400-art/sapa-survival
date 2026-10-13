@@ -84,7 +84,7 @@ export function makeNet(ctx){
  N.localAnim=()=>emT>0?emA:'idle';
  N.job=(career,score)=>room&&room.send('job',{career,score});N.buy=item=>room&&room.send('buy',{item});N.spend=(amount,reason)=>room&&room.send('spend',{amount,reason});
  // ---------- per frame ----------
- N.frame=(dt,tm)=>{if(!N.on||!room)return;const S=ctx.S,IN=ctx.IN,PR=ctx.PR;emT-=dt;
+ N.frame=(dt,tm)=>{if(!N.on||!room||!ctx.S||!ctx.S.p||!ctx.PR||!room.state||!room.state.players)return;const S=ctx.S,IN=ctx.IN,PR=ctx.PR;emT-=dt;
   sendT-=dt;if(sendT<=0){sendT=.1;const st={x:Math.round(S.p.x*10)/10,y:Math.round(S.p.y*10)/10,ry:Math.round(PR.ry*100)/100,anim:PR.moving?'walk':N.localAnim(),ins:IN?IN.b.id:'',v:ctx.VEH?1:0};if(st.x!==last.x||st.y!==last.y||st.ry!==last.ry||st.anim!==last.anim||st.ins!==last.ins){room.send('move',st);last=st}}
   const seen=new Set();room.state.players.forEach((p,id)=>{if(id===me)return;seen.add(id);let o=remotes.get(id);
    if(!o){o={a:R.addRemote({skin:p.skin,out:p.out,hair:p.hair,body:p.body,name:p.name}),x:p.x,y:p.y,ry:p.ry,ph:0,em:null,emT:0,np:document.createElement('div')};o.np.className='np';o.np.textContent=p.name;$('#netNames').appendChild(o.np);remotes.set(id,o)}
