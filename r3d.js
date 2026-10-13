@@ -1,10 +1,12 @@
 // Naija Republic v5 — Three.js renderer (low-poly, procedural; no external assets)
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {clone as skClone} from 'three/addons/utils/SkeletonUtils.js';
 export const K=0.05; // 2D world units -> metres
-const QS={low:{pr:1,sh:0,npc:10,tpx:256,far:150,aa:false,an:2},med:{pr:1.5,sh:1024,npc:18,tpx:512,far:220,aa:true,an:4},high:{pr:2,sh:2048,npc:26,tpx:768,far:300,aa:true,an:8}};
-import {build3D,frame3D} from './city.js?v=7';
-let rd,scene,camera,hemi,dirL,pl,sky,sunM,moonM,stars,waterMat,D,Q='med',iscene=null,iInfo=null,player=null,marker,CITY=null,flash=0;
+const QS={low:{pr:1,sh:0,npc:10,tpx:256,far:150,aa:false,an:2,mix:10},med:{pr:1.5,sh:1024,npc:18,tpx:512,far:220,aa:true,an:4,mix:18},high:{pr:2,sh:2048,npc:26,tpx:768,far:300,aa:true,an:8,mix:30}};
+import {build3D,frame3D} from './city.js?v=9';
+let tapM=null,rd,scene,camera,hemi,dirL,pl,sky,sunM,moonM,stars,waterMat,D,Q='med',iscene=null,iInfo=null,player=null,marker,CITY=null,flash=0;
 const bmats=[],solids=[],ray=new THREE.Raycaster();let wpM,cdist=11;const cam={yaw:0,pitch:.5,dist:14};
 const MC={};const lam=c=>MC[c]||(MC[c]=new THREE.MeshLambertMaterial({color:c}));
 const BMC={};const basic=c=>BMC[c]||(BMC[c]=new THREE.MeshBasicMaterial({color:c}));
@@ -22,7 +24,8 @@ function prism(w,h,d){const A=[-w/2,0,-d/2],B=[-w/2,0,d/2],C=[-w/2,h,0],A2=[w/2,
 export const R={cam,get q(){return Q},
  async init(canvas,q){Q=QS[q]?q:'med';const s=QS[Q];
   rd=new THREE.WebGLRenderer({canvas,antialias:s.aa,powerPreference:'high-performance'});rd.setPixelRatio(Math.min(devicePixelRatio||1,s.pr));rd.setSize(innerWidth,innerHeight,false);
-  rd.shadowMap.enabled=!!s.sh;rd.shadowMap.type=THREE.PCFShadowMap;
+  rd.outputColorSpace=THREE.SRGBColorSpace;rd.toneMapping=THREE.ACESFilmicToneMapping;rd.toneMappingExposure=1.12;
+  rd.shadowMap.enabled=!!s.sh;rd.shadowMap.type=THREE.PCFSoftShadowMap;
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,900);
   scene.fog=new THREE.Fog('#cfeaff',70,220);
   hemi=new THREE.HemisphereLight('#cfe8ff','#8a7a50',1.3);scene.add(hemi);
@@ -47,6 +50,7 @@ export const R={cam,get q(){return Q},
    fragmentShader:'uniform float t;uniform float n;uniform float r;varying vec3 w;void main(){float s=sin(w.x*.55+t*1.3)*sin(w.z*.7-t*1.1)+.5*sin((w.x+w.z)*1.4+t*2.1);vec3 c=mix(vec3(.03,.36,.42),vec3(.16,.6,.66),.5+.3*s);c=mix(c,vec3(.3,.36,.38),r*.5);c+=smoothstep(1.05,1.4,s)*.3;c*=mix(1.,.2,n);gl_FragColor=vec4(c,1.);}'});
   const wm=new THREE.Mesh(new THREE.PlaneGeometry(WW*K+1600,WH*K+1600),waterMat);wm.rotation.x=-Math.PI/2;wm.position.set(WW*K/2,-.4,WH*K/2);scene.add(wm);await prog(62);
   for(const b of B)this.building(b);await prog(72);
+  await Promise.race([loadChars(),new Promise(r=>setTimeout(r,20000))]);
   const api={scene,lam,ctex,part,VC,prism,makeAvatar,animate,geo:(t,c)=>this.geo(t,c),tpx:()=>QS[Q].tpx,aniso:()=>QS[Q].an,npcMax:()=>QS[Q].npc};this.api=api;
   CITY=build3D(api);await prog(86);CITY.ensureTiles(d.spawn.x,d.spawn.y,true);await prog(95);
   player=new THREE.Group();scene.add(player);
@@ -168,10 +172,10 @@ export const R={cam,get q(){return Q},
  setInteriorPower(bo,gen){if(!iInfo)return;const sp=iInfo.sp;sp.bo=bo;sp.gen=gen;const lit=!bo||sp.powered;iInfo.il.intensity=lit?(sp.lampI??25):5;iInfo.il.color.set(lit?(sp.lampC||'#ffe0b0'):'#ff9a40');iInfo.ih.intensity=lit?1.1:.25},
  screen(x,y,z){const v=new THREE.Vector3(x,y,z).project(camera);return{x:(v.x+1)/2*innerWidth,y:(1-v.y)/2*innerHeight,vis:v.z<1&&Math.abs(v.x)<1.1&&Math.abs(v.y)<1.1}},
  // ---------- per frame ----------
- frame(dt,st){const tm=st.tm,P=st.p;
+ frame(dt,st){const tm=st.tm,P=st.p;MIX.n=0;MIX.cap=QS[Q].mix;
   const av=player&&player.userData.av;if(player)player.visible=!st.hideP;
   // animate player
-  if(av){const host=iscene?iInfo.ip:player;host.position.set(P.x,0,P.z);if(!st.dead){host.rotation.set(0,P.ry,0);av.position.y=0;av.rotation.set(0,0,0);(P.anim&&P.anim!=='idle'&&!P.moving)?animX(av,P.ph,P.anim,tm):animate(av,P.ph,P.moving?1:0,tm)}
+  if(av){const host=iscene?iInfo.ip:player;host.position.set(P.x,0,P.z);if(!st.dead){host.rotation.set(0,P.ry,0);av.position.y=0;av.rotation.set(0,0,0);(P.anim&&P.anim!=='idle'&&!P.moving)?animX(av,P.ph,P.anim,tm):animate(av,P.ph,P.moving?(P.gait===2?2:P.gait===0?.6:1):0,tm)}
    else{const k=Math.min(1,st.dead.t/0.9);host.position.x+=st.dead.dx*k*3.5;host.position.z+=st.dead.dz*k*3.5;av.position.y=Math.sin(k*Math.PI)*1.6+.15*k;av.rotation.x=-k*Math.PI/2;av.rotation.z=k*1.2;const u=av.userData;u.arms[0].rotation.z=k*2;u.arms[1].rotation.z=-k*2;u.legs[0].rotation.x=k*.6}}
   const tgt=new THREE.Vector3(P.x,1.3,P.z);if(st.dead)tgt.set(P.x+st.dead.dx*3,1,P.z+st.dead.dz*3);
   let yaw=cam.yaw,pitch=cam.pitch,dist=cam.dist;if(st.title){yaw=tm*.06;pitch=.35;dist=26;tgt.set(P.x,4,P.z)}
@@ -181,7 +185,7 @@ export const R={cam,get q(){return Q},
   camera.position.set(tgt.x+Math.sin(yaw)*Math.cos(pitch)*dist,tgt.y+Math.sin(pitch)*dist,tgt.z+Math.cos(yaw)*Math.cos(pitch)*dist);camera.lookAt(tgt);if(st.cine){camera.position.fromArray(st.cine.p);camera.lookAt(st.cine.l[0],st.cine.l[1],st.cine.l[2])}
   if(wpM){if(st.wp&&!iscene){wpM.visible=true;wpM.position.x=st.wp[0];wpM.position.z=st.wp[1];wpM.material.opacity=.2+Math.sin(tm*3)*.08}else wpM.visible=false}
   {const host=iscene||scene;if(marker.parent!==host)host.add(marker);if(st.marker){marker.visible=true;marker.position.set(st.marker[0],(st.marker[2]||2.9)+Math.sin(tm*4)*.2,st.marker[1]);marker.rotation.y=tm*2}else marker.visible=false}
-  if(iscene){for(const f of iInfo.anim)f(tm,dt);for(const o of iInfo.npcs){o.ph+=dt*(o.n.dance?9:2);animate(o.a,o.ph,0,tm);if(o.n.dance){o.a.position.y=Math.abs(Math.sin(o.ph))*.25;o.a.userData.arms.forEach((a,i)=>a.rotation.x=-2.4+Math.sin(o.ph+i)*.5);o.a.rotation.y+=dt*.6}}
+  if(iscene){for(const f of iInfo.anim)f(tm,dt);for(const o of iInfo.npcs){o.ph+=dt*(o.n.dance?9:2);if(o.a.userData.glb){animX(o.a,o.ph,o.n.dance?'dance':'idle',tm);continue}animate(o.a,o.ph,0,tm);if(o.n.dance){o.a.position.y=Math.abs(Math.sin(o.ph))*.25;o.a.userData.arms.forEach((a,i)=>a.rotation.x=-2.4+Math.sin(o.ph+i)*.5);o.a.rotation.y+=dt*.6}}
    rd.render(iscene,camera);return}
   // sky & light
   const h=st.h,nf=st.nf,bo=st.bo,a=(h-6)/12*Math.PI,sd=new THREE.Vector3(Math.cos(a)*.8,Math.sin(a),-.45).normalize();
@@ -200,12 +204,37 @@ export const R={cam,get q(){return Q},
   frame3D(CITY,this.api,dt,{x:P.x/K,y:P.z/K,cx:tgt.x,cz:tgt.z,camP:camera.position,nf,bo,wet:wx.wet,rain:wx.rain,far,extra:st.extra});
   rd.render(scene,camera)},
  interiorMarker(){},
+ // tap-to-move helpers: screen -> ground plane (y=0) in world metres, and a small ground ring marker
+ pick(cx,cy){if(!camera)return null;const v=new THREE.Vector2(cx/innerWidth*2-1,-(cy/innerHeight)*2+1);ray.setFromCamera(v,camera);const d=ray.ray.direction,o=ray.ray.origin;ray.far=Infinity;if(d.y>-1e-3)return null;const t=-o.y/d.y;if(t>400)return null;return{x:o.x+d.x*t,z:o.z+d.z*t}},
+ setTap(p){if(!tapM){tapM=new THREE.Mesh(new THREE.RingGeometry(.28,.42,24).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:'#ffd400',transparent:true,opacity:.9,depthWrite:false}));tapM.renderOrder=5}
+  const host=iscene||scene;if(tapM.parent!==host)host.add(tapM);tapM.visible=!!p;if(p){tapM.position.set(p.x,.05,p.z);tapM.userData.t0=performance.now()}},
+ tapPulse(){if(tapM&&tapM.visible){const k=((performance.now()-tapM.userData.t0)/1000)%1;tapM.scale.setScalar(1+k*.5);tapM.material.opacity=.95-k*.6}},
  info(){return rd.info.render},
  camInfo(){const d=new THREE.Vector3();camera.getWorldDirection(d);const f=Math.hypot(d.x,d.z)||1;return{x:camera.position.x,y:camera.position.y,z:camera.position.z,fx:d.x/f,fz:d.z/f}}
 };
 function floorTex(c,pat,w,d){const t=ctex(128,128,g=>{g.fillStyle=c;g.fillRect(0,0,128,128);if(pat==='tile'){g.fillStyle='rgba(0,0,0,.12)';g.fillRect(0,0,64,64);g.fillRect(64,64,64,64);g.fillStyle='rgba(0,0,0,.25)';g.fillRect(0,0,128,2);g.fillRect(0,0,2,128)}else if(pat==='wood'){g.fillStyle='rgba(0,0,0,.15)';for(let i=0;i<128;i+=16)g.fillRect(0,i,128,2)}else{g.fillStyle='rgba(0,0,0,.1)';for(let i=0;i<300;i++)g.fillRect(Math.random()*128,Math.random()*128,2,2)}},1);t.repeat.set(w/2,d/2);return t}
 // ---------- avatars ----------
-export function makeAvatar(lk,npc){const g=new THREE.Group(),bw=lk.body?.56:.44,u={legs:[],arms:[]},pant=npc?'#37474f':'#263238',B3=(w,h,d)=>new THREE.BoxGeometry(w,h,d),HC='#1b1b1b';
+// ---------- rigged CC0 characters (Quaternius, see CREDITS.md) ----------
+const CH={list:['casual','hoodie','business','woman1','woman2'],base:{},ready:false,mats:{}},MIX={n:0,cap:18};
+export async function loadChars(){const L=new GLTFLoader();await Promise.all(CH.list.map(n=>L.loadAsync('assets/chars/'+n+'.glb?v=9').then(g=>prepChar(n,g)).catch(e=>console.warn('char load',n,e&&e.message))));CH.ready=Object.keys(CH.base).length>0;return CH.ready}
+function prepChar(n,g){const s=g.scene;s.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(s,true),h=bb.max.y-bb.min.y||1;s.scale.multiplyScalar(1.8/h);s.position.y=-bb.min.y*1.8/h;
+ const cnt={},clips={};s.traverse(o=>{if(o.isMesh){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms){m.metalness=0;m.roughness=Math.max(.55,m.roughness??.8);const k=m.name||'';if(!/skin|hair|eye|brow|moust|black|shoe/i.test(k))cnt[k]=(cnt[k]||0)+o.geometry.attributes.position.count}}});
+ const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];for(const c of g.animations)clips[c.name.split('|').pop()]=c;CH.base[n]={id:n,scene:s,clips,top:top&&top[0],fem:/woman/.test(n)}}
+const hsh=s=>{let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h};
+function pickChar(lk){const h=hsh(JSON.stringify(lk)),fem=lk.hair===2||lk.hair===4||lk.fem,pool=CH.list.filter(n=>CH.base[n]&&CH.base[n].fem===!!fem);const P=pool.length?pool:CH.list.filter(n=>CH.base[n]);
+ if(!fem&&CH.base.business&&/^#(212121|0d47a1|263238|37474f|1a237e)/i.test(lk.out||''))return 'business';return P[h%P.length]}
+function tintMat(m,lk,B){const k=m.name||'',key=B.id+'|'+k+'|'+lk.skin+'|'+lk.out;if(CH.mats[key])return CH.mats[key];let c=null;
+ if(/skin_darker/i.test(k))c=new THREE.Color(lk.skin||'#5a3825').multiplyScalar(.75);else if(/skin/i.test(k))c=new THREE.Color(lk.skin||'#5a3825');else if(/hair|brow|moust/i.test(k))c=new THREE.Color('#141010');else if(k===B.top&&lk.out)c=new THREE.Color(lk.out);
+ if(!c)return m;const n=m.clone();n.color.copy(c);return CH.mats[key]=n}
+function glbAvatar(lk,npc){const B=CH.base[pickChar(lk)],m=skClone(B.scene),g=new THREE.Group();
+ m.traverse(o=>{if(o.isMesh){o.castShadow=!npc;o.receiveShadow=false;o.material=Array.isArray(o.material)?o.material.map(x=>tintMat(x,lk,B)):tintMat(o.material,lk,B)}});g.add(m);
+ const mixer=new THREE.AnimationMixer(m),act={};for(const k of ['Idle','Walk','Run','Wave'])if(B.clips[k]){const a=act[k]=mixer.clipAction(B.clips[k]);a.play();a.setEffectiveWeight(k==='Idle'?1:0);a.time=Math.random()*B.clips[k].duration}
+ const dm=()=>new THREE.Object3D(),L=[dm(),dm()],A=[dm(),dm()],bd=dm();g.add(...L,...A,bd);g.userData={legs:L,arms:A,body:bd,glb:{mixer,act,w:{Idle:1,Walk:0,Run:0,Wave:0},t:-1,model:B.id}};return g}
+function glbAnim(a,want,speed,tm){const G=a.userData.glb;let dt=G.t<0?0:tm-G.t;if(dt<0||dt>.25)dt=.016;
+ if(MIX.n>=MIX.cap)return;G.t=tm;MIX.n++;const k=Math.min(1,dt*8);for(const n in G.act){const tg=n===want?1:0;G.w[n]+=(tg-G.w[n])*k;G.act[n].setEffectiveWeight(G.w[n])}
+ if(G.act.Walk)G.act.Walk.timeScale=want==='Walk'?Math.max(.6,speed):1;G.mixer.update(dt)}
+export const charInfo=()=>({ready:CH.ready,models:Object.keys(CH.base),mix:MIX.n});
+export function makeAvatar(lk,npc){if(CH.ready)try{return glbAvatar(lk,npc)}catch(e){console.warn('glbAvatar',e)}const g=new THREE.Group(),bw=lk.body?.56:.44,u={legs:[],arms:[]},pant=npc?'#37474f':'#263238',B3=(w,h,d)=>new THREE.BoxGeometry(w,h,d),HC='#1b1b1b';
  for(const s of [-1,1]){const L=new THREE.Mesh(mergeGeometries([part(B3(.17,.8,.2),pant,0,-.4,0),part(B3(.19,.12,.3),'#111',0,-.8,.04)]),VC);L.position.set(s*bw*.24,.86,0);g.add(L);u.legs.push(L);
   const A=new THREE.Mesh(mergeGeometries([part(B3(.13,.36,.15),lk.out,0,-.17,0),part(B3(.11,.32,.12),lk.skin,0,-.5,0)]),VC);A.position.set(s*(bw/2+.08),1.44,0);g.add(A);u.arms.push(A)}
  const ico=(r,sx,sy,sz)=>new THREE.IcosahedronGeometry(r,1).scale(sx,sy,sz);
@@ -218,9 +247,9 @@ export function makeAvatar(lk,npc){const g=new THREE.Group(),bw=lk.body?.56:.44,
  else P.push(part(ico(.27,1.05,.72,1),lk.out,0,.73,-.02),part(B3(.14,.14,.1),lk.out,.16,.85,-.05));
  const body=new THREE.Mesh(mergeGeometries(P),VC);body.position.y=1.17;g.add(body);u.body=body;
  g.traverse(o=>{if(o.isMesh)o.castShadow=true});g.userData=u;return g}
-function animate(a,ph,mv,tm){const u=a.userData,s=Math.sin(ph)*.7*mv;u.legs[0].rotation.x=s;u.legs[1].rotation.x=-s;u.arms[0].rotation.x=-s*.85;u.arms[1].rotation.x=s*.85;u.arms[0].rotation.z=u.arms[1].rotation.z=0;
+function animate(a,ph,mv,tm){if(a.userData.glb){glbAnim(a,mv>1.5?'Run':mv>0?'Walk':'Idle',mv,tm);a.position.y=0;return}const u=a.userData,s=Math.sin(ph)*.7*mv;u.legs[0].rotation.x=s;u.legs[1].rotation.x=-s;u.arms[0].rotation.x=-s*.85;u.arms[1].rotation.x=s*.85;u.arms[0].rotation.z=u.arms[1].rotation.z=0;
  a.position.y=mv?Math.abs(Math.cos(ph))*.05:0;u.body.scale.y=mv?1:1+Math.sin(tm*2.2+ph)*.015}
-export function animX(a,ph,anim,tm){const u=a.userData;if(anim==='walk'){animate(a,ph,1,tm);return}animate(a,ph,0,tm);
+export function animX(a,ph,anim,tm){const u=a.userData;if(u.glb){if(anim==='walk')return animate(a,ph,1,tm);glbAnim(a,anim==='wave'||anim==='dance'?'Wave':'Idle',1,tm);a.position.y=anim==='dance'?Math.abs(Math.sin(tm*9))*.15:anim==='kneel'?-.35:0;return}if(anim==='walk'){animate(a,ph,1,tm);return}animate(a,ph,0,tm);
  if(anim==='dance'){a.position.y=Math.abs(Math.sin(tm*9))*.22;u.arms.forEach((r,i)=>{r.rotation.x=-2.5+Math.sin(tm*9+i*3)*.5});u.legs[0].rotation.x=Math.sin(tm*9)*.5;u.legs[1].rotation.x=-Math.sin(tm*9)*.5}
  else if(anim==='wave'){u.arms[1].rotation.z=2.6+Math.sin(tm*10)*.35}
  else if(anim==='kneel'){a.position.y=-.35;u.legs.forEach(l=>l.rotation.x=-1.4);u.arms.forEach(r=>r.rotation.x=-.4)}}

@@ -1,14 +1,14 @@
 // Naija Republic v5 — open-world Lagos life-sim. Three.js via importmap, no build step.
-import {R,K} from './r3d.js?v=7';
-import {makeNet} from './online.js?v=8';
-import {makeAudio} from './audio.js?v=7';
-import {makeStory} from './story.js?v=7';
-import * as CT from './city.js?v=7';
+import {R,K} from './r3d.js?v=9';
+import {makeNet} from './online.js?v=9';
+import {makeAudio} from './audio.js?v=9';
+import {makeStory} from './story.js?v=9';
+import * as CT from './city.js?v=9';
 const $=s=>document.querySelector(s);
 const cv=$('#cv');
 const SAVE='sapa_world_v5',MAXM=1e9;
 const {WW,WH,B,BY,AREAS,blocked,water,PARKS,BRT,JETTIES,HUBS}=CT;
-const SET=Object.assign({q:innerWidth<760?'med':'high',snd:1,lang:'en',vm:.8,vs:.8,va:.5},(()=>{try{return JSON.parse(localStorage.getItem('sapa_settings'))||{}}catch(e){return{}}})());
+const SET=Object.assign({q:innerWidth<760?'med':'high',snd:1,mus:1,lang:'en',vm:.8,vs:.8,va:.5},(()=>{try{return JSON.parse(localStorage.getItem('sapa_settings'))||{}}catch(e){return{}}})());
 ['vm','vs','va'].forEach(k=>{if(!(typeof SET[k]==='number'&&SET[k]>=0&&SET[k]<=1))SET[k]=k==='va'?.5:.8});if(SET.snd!==0)SET.snd=1;
 const saveSet=()=>{try{localStorage.setItem('sapa_settings',JSON.stringify(SET))}catch(e){}};
 let S=null;
@@ -78,6 +78,8 @@ const genOn=()=>S&&S.genT>S.t;
 const AU=makeAudio(SET);
 const _unl=()=>{AU.init();sndBan()};['pointerdown','pointerup','touchend','click','keydown'].forEach(e=>addEventListener(e,_unl,{capture:true,passive:true}));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&AU.ctx&&AU.ctx.state!=='running')try{AU.ctx.resume()}catch(e){}});
+function musBtn(){const b=document.getElementById('musBtn');if(!b)return;const on=SET.snd&&SET.mus!==0;b.textContent=on?'🎵':'🔇';b.classList.toggle('off',!on);b.title=on?'Music on (tap to turn off)':'Music off (tap to turn on)'}
+{const b=document.getElementById('musBtn');if(b){b.addEventListener('click',e=>{e.stopPropagation();AU.init();if(!SET.snd){SET.snd=1;SET.mus=1}else SET.mus=SET.mus===0?1:0;saveSet();AU.vol();musBtn();toast&&toast(SET.mus?'🎵 Music on':'🔇 Music off')});musBtn()}}
 function sndBan(){const b=document.getElementById('sndBan');if(!b)return;const ok=AU.ctx&&AU.ctx.state==='running';b.classList.toggle('hide',!!ok||!SET.snd)}
 setInterval(sndBan,1000);
 
@@ -96,13 +98,43 @@ addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;co
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);addEventListener('blur',()=>{for(const k in keys)keys[k]=0});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=0});
 const jEl=$('#joy'),jK=jEl.firstElementChild;
+// v6 controls: tap/click-to-move (default), press-and-hold or drag = walk toward finger, two-finger / right-edge / mouse drag = camera.
+// Classic virtual joystick is optional (Settings -> Controls).
+let MT=null,HOLD=null;const useJoy=()=>!!SET.joy;
+function camDrag(p,e){R.cam.yaw-=(e.clientX-p.x)*.008;R.cam.pitch=cl(R.cam.pitch+(e.clientY-p.y)*.005,.1,1.3)}
 cv.addEventListener('pointerdown',e=>{if(!uiFree())return;try{cv.setPointerCapture(e.pointerId)}catch(_){}
- if((e.pointerType==='touch'||touchy)&&e.clientX<innerWidth*.5&&!joy){joy={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};jEl.style.display='block';jEl.style.left=e.clientX-60+'px';jEl.style.top=e.clientY-60+'px';jK.style.transform=''}
- else{ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y)}}});
+ const isT=e.pointerType==='touch'||(e.pointerType!=='mouse'&&touchy);
+ if(useJoy()&&isT&&e.clientX<innerWidth*.5&&!joy){joy={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};jEl.style.display='block';jEl.style.left=e.clientX-60+'px';jEl.style.top=e.clientY-60+'px';jK.style.transform='';return}
+ const p={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,t:performance.now(),isT,cam:(!isT&&e.button===2)||(isT&&e.clientX>innerWidth*.88)||useJoy(),mv:0};ptrs.set(e.pointerId,p);
+ if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y);HOLD=null;for(const q of ptrs.values())q.multi=1}else if(isT&&!p.cam)HOLD={id:e.pointerId,p,on:0}});
 cv.addEventListener('pointermove',e=>{if(joy&&e.pointerId===joy.id){let dx=e.clientX-joy.x,dy=e.clientY-joy.y;const m=Math.hypot(dx,dy),mx=45;if(m>mx){dx*=mx/m;dy*=mx/m}joy.dx=dx/mx;joy.dy=dy/mx;jK.style.transform=`translate(${dx}px,${dy}px)`;return}
- const p=ptrs.get(e.pointerId);if(!p)return;if(ptrs.size===1){R.cam.yaw-=(e.clientX-p.x)*.008;R.cam.pitch=cl(R.cam.pitch+(e.clientY-p.y)*.005,.1,1.3)}
- p.x=e.clientX;p.y=e.clientY;if(ptrs.size===2){const [a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch>0)R.cam.dist=cl(R.cam.dist*pinch/d,4,24);pinch=d}});
-const pEnd=e=>{if(joy&&e.pointerId===joy.id){joy=null;jEl.style.display='none'}ptrs.delete(e.pointerId);pinch=0};cv.addEventListener('pointerup',pEnd);cv.addEventListener('pointercancel',pEnd);
+ const p=ptrs.get(e.pointerId);if(!p)return;const moved=Math.hypot(e.clientX-p.sx,e.clientY-p.sy);if(moved>12)p.mv=1;
+ if(ptrs.size===2){const [a,b]=[...ptrs.values()];const ox=p.x;p.x=e.clientX;p.y=e.clientY;const d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch>0)R.cam.dist=cl(R.cam.dist*pinch/d,4,24);pinch=d;R.cam.yaw-=(e.clientX-ox)*.004;return}
+ if(p.cam||(!p.isT&&e.buttons&&p.mv)){p.cam=1;camDrag(p,e)}else if(HOLD&&HOLD.id===e.pointerId&&p.mv){HOLD.on=1;MT=null;R.setTap(null)}
+ p.x=e.clientX;p.y=e.clientY});
+const pEnd=e=>{if(joy&&e.pointerId===joy.id){joy=null;jEl.style.display='none'}const p=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);pinch=0;
+ const wasHold=HOLD&&HOLD.id===e.pointerId&&HOLD.on;if(HOLD&&HOLD.id===e.pointerId)HOLD=null;
+ if(e.type==='pointerup'&&p&&!p.mv&&!p.multi&&!wasHold&&!(p.cam&&!p.isT&&e.button===2)&&performance.now()-p.t<450&&uiFree()&&!useJoy())tapAt(e.clientX,e.clientY)};
+cv.addEventListener('pointerup',pEnd);cv.addEventListener('pointercancel',pEnd);
+// tap: walk to ground point; if it is on/near a door, car or interior station, walk there then interact
+function tapAt(cx,cy){if(DRV||RIDE||DEAD)return;const g=R.pick(cx,cy);if(!g)return;let tgt=null,x,y;
+ if(IN){x=g.x;y=g.z;let bd=1.6;for(const a of IN.acts){const d=Math.hypot(a.x-x,a.z-y);if(d<Math.max(bd,a.r*.8)){bd=d;tgt=a}}if(tgt){x=tgt.x;y=tgt.z}}
+ else{x=g.x/K;y=g.z/K;let bd=70;for(const b of B){const d=Math.hypot(b.door.x-x,b.door.y-y);if(d<bd){bd=d;tgt=b}}
+  if(S.myCar){const d=Math.hypot(S.myCar.x-x,S.myCar.y-y);if(d<60&&(!tgt||d<bd))tgt={id:'mycar',door:{x:S.myCar.x,y:S.myCar.y}}}if(tgt){x=tgt.door.x;y=tgt.door.y}}
+ if(tgt&&(IN?nearAct===tgt:(near&&near.id===tgt.id))){MT=null;R.setTap(null);interact();return}
+ MT={x,y,tgt,t:0,best:1e9,bt:0,inn:!!IN};R.setTap(IN?{x,z:y}:{x:x*K,z:y*K})}
+// convert a world-space direction (x,z) into camera-relative stick input
+function dirToInput(fx,fz){const yaw=R.cam.yaw,c=Math.cos(yaw),s=Math.sin(yaw);return [fx*c-fz*s,fx*s+fz*c]}
+function autoInput(dt){if(HOLD){const p=HOLD.p;if(!HOLD.on&&performance.now()-p.t>260){HOLD.on=1;MT=null;R.setTap(null)}
+  if(HOLD.on){const P=IN?{x:IN.p.x,z:IN.p.z}:{x:S.p.x*K,z:S.p.y*K},sc=R.screen(P.x,1,P.z);let dx=p.x-sc.x,dy=p.y-sc.y;const m=Math.hypot(dx,dy);if(m<18)return null;return [dx/m,dy/m]}}
+ if(MT&&MT.inn!==!!IN){MT=null;R.setTap(null)}if(!MT)return null;const px=IN?IN.p.x:S.p.x,py=IN?IN.p.z:S.p.y,u=IN?1:1/K,dx=MT.x-px,dy=MT.y-py,d=Math.hypot(dx,dy);
+ const tg=MT.tgt,arr=tg?(IN?nearAct===tg:(near&&near.id===tg.id&&d<45)):d<(IN?.35:12);
+ if(arr||d<(IN?.25:8)){const t=MT.tgt;MT=null;R.setTap(null);if(t&&(IN?nearAct===t:(near&&near.id===t.id)))interact();return null}
+ MT.t+=dt;if(d<MT.best-(IN?.2:4)){MT.best=d;MT.bt=MT.t}if(MT.t-MT.bt>2.2){MT=null;R.setTap(null);return null}
+ // simple steering: probe ahead and swing left/right around obstacles
+ let fx=dx/d,fz=dy/d;const look=IN?.6:14,blk=IN?(x,z)=>{const sw=IN.sp.w/2-.35,sd=IN.sp.d/2-.35;return Math.abs(x)>sw||Math.abs(z)>sd||IN.cols.some(c=>Math.abs(x-c.x)<c.hw&&Math.abs(z-c.z)<c.hd)}:(x,y)=>blocked(x,y);
+ if(blk(px+fx*look,py+fz*look)){const a0=Math.atan2(fz,fx);MT.side=MT.side||1;let ok=0;for(const da of [.5,1,1.5,2.1]){for(const sg of [MT.side,-MT.side]){const a=a0+da*sg,ax=Math.cos(a),az=Math.sin(a);if(!blk(px+ax*look,py+az*look)){fx=ax;fz=az;MT.side=sg;ok=1;break}}if(ok)break}}
+ return dirToInput(fx,fz)}
 cv.addEventListener('wheel',e=>{e.preventDefault();R.cam.dist=cl(R.cam.dist*(1+e.deltaY*.001),4,24)},{passive:false});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 const vis=id=>!$(id).classList.contains('hide');
@@ -126,6 +158,7 @@ function setWx(k){S.wx={k,until:S.t+240};if(k==='rain'){WX.rain=.9;WX.wet=.8}els
 function inputVec(dt){let mx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),my=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
  if(joy&&Math.hypot(joy.dx,joy.dy)>.15){mx=joy.dx;my=joy.dy}
  const gp=navigator.getGamepads&&[...navigator.getGamepads()].find(Boolean);if(gp){const a=gp.axes;if(Math.hypot(a[0],a[1])>.2){mx=a[0];my=a[1]}if(Math.abs(a[2])>.2)R.cam.yaw-=a[2]*dt*2.5;if(Math.abs(a[3])>.2)R.cam.pitch=cl(R.cam.pitch+a[3]*dt*1.5,.1,1.3);if(gp.buttons[0]&&gp.buttons[0].pressed&&!gp._a&&(near||nearAct))interact();gp._a=gp.buttons[0]&&gp.buttons[0].pressed}
+ if(Math.hypot(mx,my)>.15){if(MT){MT=null;R.setTap(null)}}else if(S&&S.look&&!DRV&&!RIDE){const ai=autoInput(dt);if(ai){mx=ai[0];my=ai[1]}}
  return [mx,my]}
 function update(dt){
  if(DEAD){DEAD.t+=dt;if(DEAD.t>1.4&&!DEAD.shown){DEAD.shown=1;showDeath()}return}
@@ -279,7 +312,7 @@ function clubDance(){if(!(S.clubT>S.t))return toast(tr('Pay entry at the bar fir
  if(S.danceT!==S.clubT){S.danceT=S.clubT;S.dances=0}S.dances++;stat('respect',3);stat('peace',3);stat('energy',-8);adv(20);say(tr(`DJ: Make some noise for ${S.look.name}!`,`DJ: Shout for ${S.look.name}!`),0,2.6,-4.6,3);toast('💃 +⭐3 +☮️3')}
 
 // ---------- Tutorial ----------
-const TIPS=[()=>touchy?tr('👈 Drag the LEFT side to walk. 👉 Drag the RIGHT side to turn the camera. Pinch to zoom.','👈 Drag LEFT side to waka. 👉 Drag RIGHT side to turn camera. Pinch to zoom.'):tr('WASD / arrows to walk. Drag the mouse to turn the camera, scroll to zoom. Q/R also rotate.','WASD / arrow to waka. Drag mouse turn camera, scroll to zoom.'),
+const TIPS=[()=>touchy?(SET.joy?tr('👈 Drag the LEFT side to walk. 👉 Drag the RIGHT side to turn the camera. Pinch to zoom.','👈 Drag LEFT side to waka. 👉 Drag RIGHT side to turn camera. Pinch to zoom.'):tr('👆 Tap the ground to walk there (tap a door to go inside). Hold your finger to keep walking that way. Two fingers or the right edge turn the camera; pinch to zoom.','👆 Tap ground to waka go there (tap door to enter). Hold finger to dey waka. Two fingers or right edge turn camera; pinch to zoom.')):tr('WASD / arrows or click the ground to walk (click a door to go in). Drag the mouse to turn the camera, scroll to zoom.','WASD / arrow or click ground to waka. Drag mouse turn camera, scroll to zoom.'),
  ()=>tr('Walk to a door with the yellow arrow and press the button (or E) to go inside.','Waka reach door wey get yellow arrow, press button (or E) enter inside.'),
  ()=>tr('🚌 Danfos and okadas WILL hit you. Cross at the white zebra crossings — drivers stop there.','🚌 Danfo and okada go jam you o! Cross for zebra — dem go stop.'),
  ()=>tr('📱 Your phone has stats, bank, settings and the Sapa Challenge. Pay rent at your room!','📱 Your phone get stats, bank, settings and Sapa Challenge. Pay rent for your room!')];
@@ -475,8 +508,8 @@ function drawPhone(){const T=[['stats','📊',tr('Stats','Stats')],['bank','🏦
  else if(tab==='bank')bd.innerHTML=`<div class="card"><h2>🏦 ${N(S.save)}</h2><p>${tr('Savings','Savings')} · ${tr('Debt','Debt')} ${N(S.debt)}</p><p style="font-size:13px">${tr('Deposits, withdrawals and loans are done in person at Gidi Trust Bank (Victoria Island). Interest is applied weekly.','Go Gidi Trust Bank for VI to save, collect or borrow. Interest dey enter every week.')}</p></div>`;
  else if(tab==='quest')bd.innerHTML=`<div class="qlog">${STORY.log()}</div>`;
  else if(tab==='sapa')bd.innerHTML=`<iframe id="sapaFrame" src="challenge/index.html" title="Sapa Challenge"></iframe>`;
- else{bd.innerHTML=`<div class="acts"><p><b>🎮 ${tr('Graphics','Graphics')}</b></p><div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?tr('Low (fast)','Low (fast)'):q==='med'?tr('Medium','Medium'):tr('High','High')}</button>`).join('')}</div><p><b>🔊 ${tr('Audio','Audio')}</b></p>${[['vm','🎵',tr('Music','Music')],['vs','💥',tr('Sound effects','Sound effects')],['va','🌆',tr('Ambience','Ambience')]].map(([k,e,n])=>`<label class="sl">${e} ${n}<input type="range" min="0" max="1" step="0.05" value="${SET[k]??.7}" data-v="${k}"></label>`).join('')}<button id="mtest">🎵 ${tr('Test music','Test music')}</button><button id="snd">${SET.snd?'🔇 '+tr('Mute all','Mute everything'):'🔊 '+tr('Unmute','Unmute')}</button><button id="lng">🌐 ${tr('Language: English → switch to Pidgin','Language: Pidgin → switch to English')}</button><button id="sv">💾 ${tr('Save now','Save am now')}</button><button id="rs" class="alt">🗑️ ${tr('Reset game (new character)','Start again (new person)')}</button></div><p style="font-size:12px">${tr('Single-player. Saved on this device only. No chat, no real-money purchases.','Na only you dey play. E save for this phone only. No chat, no real money.')}</p>`;
-  $('#lng').onclick=()=>{S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();save();drawPhone();hud()};bd.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);drawPhone()});$('#mtest').onclick=()=>{const st=AU.test();toast('🎵 Audio: '+st+(AU.rendered?' · '+AU.rendered+' loops ready':''))};$('#snd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();drawPhone()};bd.querySelectorAll('[data-v]').forEach(i=>i.oninput=()=>{SET[i.dataset.v]=+i.value;saveSet();AU.init();AU.vol()});$('#sv').onclick=()=>{save();toast(tr('Saved ✅','E don save ✅'))};
+ else{bd.innerHTML=`<div class="acts"><p><b>🎮 ${tr('Graphics','Graphics')}</b></p><div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?tr('Low (fast)','Low (fast)'):q==='med'?tr('Medium','Medium'):tr('High','High')}</button>`).join('')}</div><p><b>🔊 ${tr('Audio','Audio')}</b></p>${[['vm','🎵',tr('Music','Music')],['vs','💥',tr('Sound effects','Sound effects')],['va','🌆',tr('Ambience','Ambience')]].map(([k,e,n])=>`<label class="sl">${e} ${n}<input type="range" min="0" max="1" step="0.05" value="${SET[k]??.7}" data-v="${k}"></label>`).join('')}<p><b>🕹️ ${tr('Controls','Controls')}</b></p><button id="joyT">${SET.joy?tr('🕹️ Joystick ON — switch to tap-to-move','🕹️ Joystick ON — change to tap-to-waka'):tr('👆 Tap-to-move ON — switch to joystick','👆 Tap-to-waka ON — change to joystick')}</button><button id="mtest">🎵 ${tr('Test music','Test music')}</button><button id="snd">${SET.snd?'🔇 '+tr('Mute all','Mute everything'):'🔊 '+tr('Unmute','Unmute')}</button><button id="lng">🌐 ${tr('Language: English → switch to Pidgin','Language: Pidgin → switch to English')}</button><button id="sv">💾 ${tr('Save now','Save am now')}</button><button id="rs" class="alt">🗑️ ${tr('Reset game (new character)','Start again (new person)')}</button></div><p style="font-size:12px">${tr('Single-player. Saved on this device only. No chat, no real-money purchases.','Na only you dey play. E save for this phone only. No chat, no real money.')}</p>`;
+  $('#lng').onclick=()=>{S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();save();drawPhone();hud()};bd.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);drawPhone()});$('#joyT').onclick=()=>{SET.joy=SET.joy?0:1;saveSet();drawPhone();toast(SET.joy?tr('🕹️ Joystick: drag left side to walk','🕹️ Joystick: drag left side to waka'):tr('👆 Tap the ground to walk; hold to keep walking; two fingers or right edge to turn camera','👆 Tap ground to waka; hold to continue; two fingers or right edge to turn camera'))};$('#mtest').onclick=()=>{const st=AU.test(),d=AU.diag;toast('🎵 Audio: '+st+' · '+d.rendered+' loops'+(d.elTrack?' · playing '+d.elTrack+(d.elPaused?' (paused)':''):'')+(d.err?' · '+d.err:''))};$('#snd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();musBtn();drawPhone()};bd.querySelectorAll('[data-v]').forEach(i=>i.oninput=()=>{SET[i.dataset.v]=+i.value;saveSet();AU.init();AU.vol()});$('#sv').onclick=()=>{save();toast(tr('Saved ✅','E don save ✅'))};
   $('#rs').onclick=()=>{if(confirm(tr('Delete your save and start over?','You sure say make we clear everything?'))){localStorage.removeItem(SAVE);const lang=S.lang;S={lang};if(IN)leaveInterior(true);closePhone();creator()}}}}
 // ---------- Character creator ----------
 
@@ -512,7 +545,7 @@ function showTitle(){const has=load();const t=$('#title');t.classList.remove('hi
  if(has)$('#tCont').onclick=()=>{AU.init();start()};
  const nw_=story=>{AU.init();if(has&&!confirm(tr('Start a new life? Your current save will be replaced when you enter Lagos.','Start new life? Your old save go clear when you enter Lagos.')))return;const lang=(S&&S.lang)||SET.lang;S={lang};STORYMODE=story;creator()};$('#tStory').onclick=()=>nw_(true);$('#tOnline').onclick=()=>{AU.init();goOnline()};$('#tNew').onclick=()=>nw_(false);
  t.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);showTitle()});
- $('#tSnd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();showTitle()};$('#tLng').onclick=()=>{SET.lang=SET.lang==='pg'?'en':'pg';if(S)S.lang=SET.lang;saveSet();showTitle()}}
+ $('#tSnd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();musBtn();showTitle()};$('#tLng').onclick=()=>{SET.lang=SET.lang==='pg'?'en':'pg';if(S)S.lang=SET.lang;saveSet();showTitle()}}
 const prog=p=>{$('#lbar').style.width=p+'%';$('#lpct').textContent=Math.round(p)+'%';return new Promise(r=>setTimeout(r,16))};
 let last=performance.now(),hudT=0;
 function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;tm+=dt;
@@ -520,7 +553,7 @@ function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;tm+=dt;
   const title=!playing;const pp=IN?{x:IN.p.x,z:IN.p.z}:(S&&S.p&&S.look?{x:S.p.x*K,z:S.p.y*K}:{x:BY.tech.door.x*K,z:(BY.tech.door.y+60)*K});
   const extra=[];if(S&&S.look){if(S.myCar){const c=S.myCar;extra.push({k:'mycar',t:'car',c:carModel().c,x:c.x,y:c.y,h:c.h,roll:c.hp<=0?.25:0})}if(RIDE)extra.push({k:'ride',t:RIDE.M.vt,c:null,x:RIDE.x||S.p.x,y:RIDE.y||S.p.y,h:RIDE.h||0,yo:RIDE.M.water?-.35:0})}
   if(NET.on)NET.frame(dt,tm);let mk=null;if(playing&&!DEAD){if(IN&&nearAct)mk=[nearAct.x,nearAct.z,2.3];else if(near&&!RIDE&&!DRV)mk=[near.door.x*K,near.door.y*K,near.kind==='car'?2.6:2.4]}
-  R.frame(dt,{tm,p:{...pp,ry:PR.ry,ph:PR.ph,moving:PR.moving,anim:NET.on?NET.localAnim():'idle'},h:S&&S.look?hour():16.8,nf:S&&S.look?nightF():0,bo:S&&S.look?S.bo:0,dead:DEAD,marker:mk,hideP:!!(RIDE||DRV)&&!DEAD,extra,wx:WX,title:title&&!vis('#creator')||(title&&!(S&&S.look)),cine:STORY.cine,wp:(playing&&!IN&&S.gps)?[S.gps.x*K,S.gps.y*K]:(playing&&!IN&&STORY.on&&STORY.target()&&BY[STORY.target()])?[BY[STORY.target()].door.x*K,BY[STORY.target()].door.y*K]:null});
+  R.tapPulse();R.frame(dt,{tm,p:{...pp,ry:PR.ry,ph:PR.ph,moving:PR.moving,gait:PR.gait,anim:NET.on?NET.localAnim():'idle'},h:S&&S.look?hour():16.8,nf:S&&S.look?nightF():0,bo:S&&S.look?S.bo:0,dead:DEAD,marker:mk,hideP:!!(RIDE||DRV)&&!DEAD,extra,wx:WX,title:title&&!vis('#creator')||(title&&!(S&&S.look)),cine:STORY.cine,wp:(playing&&!IN&&S.gps)?[S.gps.x*K,S.gps.y*K]:(playing&&!IN&&STORY.on&&STORY.target()&&BY[STORY.target()])?[BY[STORY.target()].door.x*K,BY[STORY.target()].door.y*K]:null});
   audioFrame(playing);
   bubTick(dt);AU.tick();if(playing){STORY.tick(dt);hudT+=dt;if(hudT>.25){hudT=0;hud()}}
   fpsN++;}catch(e){console.error(e)}requestAnimationFrame(loop)}

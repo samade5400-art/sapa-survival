@@ -1,5 +1,5 @@
 // Naija Republic Phase 0 — online layer for Sapa Survival (Colyseus client). Single-player code paths are untouched when NET.on is false.
-import {R,K} from './r3d.js?v=7';
+import {R,K} from './r3d.js?v=9';
 const $=s=>document.querySelector(s);
 export const DEFAULT_SERVER='wss://naija-republic-server.onrender.com';
 const CLIENT_URL='https://cdn.jsdelivr.net/npm/colyseus.js@0.16.22/+esm';

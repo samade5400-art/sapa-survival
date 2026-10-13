@@ -1,10 +1,28 @@
 // Sapa Survival v4 — procedural WebAudio: music engine (5 original loops), district ambience, positional SFX. No samples.
 const mf=m=>440*Math.pow(2,(m-69)/12);
+// 16-bit PCM WAV encoder for offline-rendered loops
+function wav(buf,gain=1){const ch=buf.numberOfChannels,n=buf.length,sr=buf.sampleRate,ab=new ArrayBuffer(44+n*ch*2),v=new DataView(ab);let o=0;const S=s=>{for(let i=0;i<s.length;i++)v.setUint8(o++,s.charCodeAt(i))},U32=x=>{v.setUint32(o,x,true);o+=4},U16=x=>{v.setUint16(o,x,true);o+=2};
+ S('RIFF');U32(36+n*ch*2);S('WAVE');S('fmt ');U32(16);U16(1);U16(ch);U32(sr);U32(sr*ch*2);U16(ch*2);U16(16);S('data');U32(n*ch*2);const D=[];for(let c=0;c<ch;c++)D.push(buf.getChannelData(c));
+ for(let i=0;i<n;i++)for(let c=0;c<ch;c++){let s=D[c][i]*gain;s=s>1?1:s<-1?-1:s;v.setInt16(o,s<0?s*32768:s*32767,true);o+=2}return new Blob([ab],{type:'audio/wav'})}
+let _sil=null;const SILENT=()=>{if(_sil)return _sil;const sr=22050,n=sr/4,ab=new ArrayBuffer(44+n*2),v=new DataView(ab);const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);return _sil=URL.createObjectURL(new Blob([ab],{type:'audio/wav'}))};
 export function makeAudio(SET){
 const A={ctx:null,cur:null,club:0,dist:null,loops:{},T:{},
- unlock(){if(!this._el){try{const e=this._el=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');e.setAttribute('playsinline','');e.loop=false;const p=e.play();p&&p.catch(()=>{})}catch(e){}}
-  if(this.ctx&&this.ctx.state!=='running'){try{this.ctx.resume()}catch(e){}}
-  if(this.ctx){try{const b=this.ctx.createBuffer(1,1,22050),s=this.ctx.createBufferSource();s.buffer=b;s.connect(this.ctx.destination);s.start(0)}catch(e){}}},
+ // v6: music plays through ONE <audio loop> element fed with WAV blobs rendered offline.
+ // HTMLMediaElement ignores the iOS ring/silent switch (WebAudio does not) and survives context suspends.
+ unlock(){try{if(navigator.audioSession&&navigator.audioSession.type!=='playback')navigator.audioSession.type='playback'}catch(e){}
+  if(!this.el){const e=this.el=document.createElement('audio');e.setAttribute('playsinline','');e.setAttribute('webkit-playsinline','');e.preload='auto';e.loop=true;e.crossOrigin='anonymous';e.style.display='none';document.body&&document.body.appendChild(e);
+   e.addEventListener('playing',()=>{this.htmlOK=true;this.elErr=null});e.addEventListener('error',()=>{this.elErr='media error'});e.addEventListener('pause',()=>{this.elPlaying=false});e.addEventListener('play',()=>{this.elPlaying=true})}
+  const e=this.el;if(!this.elUnlocked||(e.paused&&(this.musOn()||!this.elTrack))){if(!e.src||!this.elTrack){e.src=SILENT();e.loop=true}const p=e.play();this.elUnlocked=true;p&&p.then(()=>{this.elGesture=true;this.syncEl()}).catch(err=>{this.elErr=String(err&&err.name||err);this.elUnlocked=false})}
+  if(this.ctx&&this.ctx.state!=='running'){try{const p=this.ctx.resume();p&&p.catch&&p.catch(()=>{})}catch(e){}}
+  if(this.ctx){try{const b=this.ctx.createBuffer(1,1,22050),s=this.ctx.createBufferSource();s.buffer=b;s.connect(this.ctx.destination);s.start(0)}catch(e){}}if(this.elGesture)this.syncEl()},
+ musOn(){return !!SET.snd&&SET.mus!==0},
+ // point the media element at the wanted track's WAV (if rendered); quick fade on desktop/Android (iOS ignores .volume)
+ syncEl(){const e=this.el;if(!e||!this.elUnlocked)return;const k=this.cur||this.want,t=this.T[k];const on=this.musOn();
+  if(!on){if(!e.paused&&this.elTrack)e.pause();return}
+  if(t&&t.url&&this.elTrack!==k){this.elTrack=k;e.loop=true;e.src=t.url;e.currentTime=0;this.applyElVol();const p=e.play();p&&p.catch(err=>{this.elErr=String(err&&err.name||err)});return}
+  if(this.elTrack&&e.paused){const p=e.play();p&&p.catch(()=>{})}},
+ applyElVol(){if(!this.el)return;const v=Math.max(0,Math.min(1,(+(SET.vm??.8))*(this.club>0&&this.cur!=='amapiano'?.55:1)));try{this.el.volume=v}catch(e){}this.el.muted=!this.musOn()},
+ get elActive(){return !!(this.el&&this.elTrack&&this.htmlOK&&!this.el.paused)},
  init(){if(this.ctx){this.unlock();return}try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=this.ctx=new C({latencyHint:'playback'});this.unlock();
   const comp=c.createDynamicsCompressor();comp.threshold.value=-14;comp.ratio.value=4;comp.connect(c.destination);this.master=c.createGain();this.master.connect(comp);
   this.mus=c.createGain();this.sfx=c.createGain();this.amb=c.createGain();[this.mus,this.sfx,this.amb].forEach(g=>g.connect(this.master));this.vol();
@@ -15,12 +33,13 @@ const A={ctx:null,cur:null,club:0,dist:null,loops:{},T:{},
  async renderAll(){const order=[this.want||'title','city','amapiano','calm','tense','title'];for(const k of [...new Set(order)]){try{await this.renderTrack(k)}catch(e){console.warn('render',k,e)}}},
  async renderTrack(k){const t=this.T[k];if(!t||t.buf)return;const OC=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!OC)return;const sr=22050,sd=60/t.bpm/4,steps=16*8,len=Math.ceil(steps*sd*sr);
   const off=new OC(2,len,sr),R={ctx:off,osc:this.osc,nz:this.nz};R.nb=this.noiseBuf.call({ctx:off},2);const bus=off.createGain();bus.connect(off.destination);
-  for(let i=0;i<steps;i++){try{t.fn.call(R,i,i*sd+.001,bus,sd)}catch(e){}}const buf=await off.startRendering();let pk=0;for(let c=0;c<buf.numberOfChannels;c++){const d=buf.getChannelData(c);for(let i=0;i<d.length;i++){const a=Math.abs(d[i]);if(a>pk)pk=a}}
-  t.buf=buf;const src=this.ctx.createBufferSource();src.buffer=buf;src.loop=true;const ng=this.ctx.createGain();ng.gain.value=pk>0?.85/pk:1;src.connect(ng);ng.connect(t.g);src.start();t.src=src;this.rendered=(this.rendered||0)+1},
- test(){this.init();if(!this.ctx)return'no audio support';const t=this.ctx.currentTime;[60,64,67,72].forEach((m,i)=>this.osc('triangle',mf(m),t+i*.12,.6,.35,this.mus,{lp:3000}));return this.ctx.state},
- vol(){if(!this.ctx)return;const m=SET.snd?1:0,t=this.ctx.currentTime;this.master.gain.setTargetAtTime(m*.9,t,.05);this.mus.gain.setTargetAtTime(+(SET.vm??.8),t,.05);this.sfx.gain.setTargetAtTime(SET.vs??.8,t,.05);this.amb.gain.setTargetAtTime(SET.va??.6,t,.05)},
+  for(let i=0;i<steps;i++){try{t.fn.call(R,i,i*sd+.001,bus,sd)}catch(e){}}const buf=await new Promise((res,rej)=>{off.oncomplete=e=>res(e.renderedBuffer);const p=off.startRendering();if(p&&p.then)p.then(res,rej)});let pk=0;for(let c=0;c<buf.numberOfChannels;c++){const d=buf.getChannelData(c);for(let i=0;i<d.length;i++){const a=Math.abs(d[i]);if(a>pk)pk=a}}
+  t.buf=buf;t.url=URL.createObjectURL(wav(buf,pk>0?.89/pk:1));this.rendered=(this.rendered||0)+1;this.syncEl()},
+ test(){this.init();if(!this.ctx)return'no audio support';this.syncEl();const t=this.ctx.currentTime;[60,64,67,72].forEach((m,i)=>this.osc('triangle',mf(m),t+i*.12,.6,.35,this.mus,{lp:3000}));return this.ctx.state},
+ vol(){this.applyElVol();this.syncEl();if(!this.ctx)return;const m=SET.snd?1:0,t=this.ctx.currentTime;this.master.gain.setTargetAtTime(m*.9,t,.05);this.mus.gain.setTargetAtTime(+(SET.vm??.8),t,.05);this.sfx.gain.setTargetAtTime(SET.vs??.8,t,.05);this.amb.gain.setTargetAtTime(SET.va??.6,t,.05)},
  on(){this.vol()},
  get state(){return this.ctx?this.ctx.state:'none'},
+ get diag(){const e=this.el;return{ctx:this.state,rendered:this.rendered||0,cur:this.cur,elTrack:this.elTrack||null,elPaused:e?e.paused:null,elVol:e?e.volume:null,elMuted:e?e.muted:null,htmlOK:!!this.htmlOK,err:this.elErr||null,mus:this.musOn()}},
  noiseBuf(d){const c=this.ctx,n=c.sampleRate*d|0,b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=Math.random()*2-1;return b},
  // ---- primitives ----
  osc(type,f,t,d,v,dest,o={}){const c=this.ctx,os=c.createOscillator(),g=c.createGain();os.type=type;os.frequency.setValueAtTime(f,t);if(o.f2)os.frequency.exponentialRampToValueAtTime(o.f2,t+(o.gt||d));if(o.det)os.detune.value=o.det;
@@ -48,8 +67,8 @@ const A={ctx:null,cur:null,club:0,dist:null,loops:{},T:{},
    const lfo=c.createOscillator(),lg=c.createGain();lfo.frequency.value=kind==='gen'?7:13;lg.gain.value=kind==='gen'?2:9;lfo.connect(lg);lg.connect(o1.frequency);o1.start();o2.start();lfo.start();L=this.loops[key]={g,p,o1,kind}}
   const P=L.p;if(P.positionX){P.positionX.value=pos[0];P.positionY.value=1;P.positionZ.value=pos[2]}else P.setPosition(pos[0],1,pos[2]);L.g.gain.setTargetAtTime(kind==='gen'?.12:.1,this.ctx.currentTime,.1)},
  // ---- music ----
- setTrack(k){this.want=k;if(!this.ctx||this.cur===k)return;this.cur=k;for(const n in this.T)this.T[n].tg=n===k?1:0},
- setClub(v){this.club=v},
+ setTrack(k){this.want=k;if(!this.ctx||this.cur===k)return;this.cur=k;for(const n in this.T)this.T[n].tg=n===k?1:0;this.syncEl()},
+ setClub(v){if((v>0)!==(this.club>0)){this.club=v;this.applyElVol()}this.club=v},
  // ---- ambience ----
  ambient(){const c=this.ctx,mk=(type,f,q,v)=>{const s=c.createBufferSource();s.buffer=this.nb;s.loop=true;const fl=c.createBiquadFilter();fl.type=type;fl.frequency.value=f;fl.Q.value=q;const g=c.createGain();g.gain.value=0;const out=c.createGain();out.gain.value=v;s.connect(fl);fl.connect(g);g.connect(out);out.connect(this.amb);s.start();return{g,fl,out}};
   this.AM={crowd:mk('bandpass',700,.6,.14),traffic:mk('lowpass',180,.7,.22),wind:mk('bandpass',900,2,.1),waves:mk('lowpass',650,.5,.2)};
@@ -60,11 +79,11 @@ const A={ctx:null,cur:null,club:0,dist:null,loops:{},T:{},
  thunder(k=1){const c=this.ctx;if(!c||c.state!=='running')return;const t=c.currentTime+.3+Math.random()*1.2,s=c.createBufferSource();s.buffer=this.nb;const f=c.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(400,t);f.frequency.exponentialRampToValueAtTime(60,t+3);const g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.55*k,t+.08);g.gain.exponentialRampToValueAtTime(.001,t+3.2);s.connect(f);f.connect(g);g.connect(this.amb);s.start(t);s.stop(t+3.4)},
  setDistrict(d){if(!this.ctx||this.dist===d)return;this.dist=d;const t=this.ctx.currentTime,G={yaba:{crowd:1,traffic:.5,wind:0,waves:0},vi:{crowd:.35,traffic:1,wind:.8,waves:.1},lekki:{crowd:.2,traffic:.35,wind:.5,waves:1},in:{crowd:.12,traffic:.12,wind:0,waves:0},title:{crowd:.4,traffic:.3,wind:.2,waves:.2}}[d]||{};
   for(const k in this.AM)this.AM[k].g.gain.setTargetAtTime(G[k]||0,t,.8)},
- tick(){const c=this.ctx;if(!c||c.state!=='running')return;const now=c.currentTime;
+ tick(){const c=this.ctx;if(!c||c.state!=='running')return;const now=c.currentTime;const ea=this.elActive||!this.musOn();this.mus.gain.setTargetAtTime(ea?0:+(SET.vm??.8),now,.15);if(this.el&&this.musOn()&&this.elTrack&&this.el.paused&&!this._rt){this._rt=1;setTimeout(()=>this._rt=0,1500);this.syncEl()}
   for(const k in this.T){const t=this.T[k];let tg=t.tg;if(k==='amapiano'&&this.club>0&&this.cur!=='amapiano')tg=1;
    if(k==='amapiano'){t.inG.gain.setTargetAtTime(this.cur==='amapiano'?1:0,now,.4);t.outG.gain.setTargetAtTime(this.cur==='amapiano'?0:this.club*.9,now,.4)}
    let lvl=tg;if(k==='city'&&this.club>0)lvl*=1-this.club*.6;t.g.gain.setTargetAtTime(lvl*t.v,now,.6);t.lv+=(tg-t.lv)*.02;
-   if(t.buf||(tg<=0&&t.lv<.01)){t.next=0;continue}const sd=60/t.bpm/4;if(t.next<now)t.next=now+.06;while(t.next<now+.3){try{t.fn.call(this,t.step,t.next,t.g,sd)}catch(e){}t.step++;t.next+=sd}}
+   if(ea||(tg<=0&&t.lv<.01)){t.next=0;continue}const sd=60/t.bpm/4;if(t.next<now)t.next=now+.06;while(t.next<now+.3){try{t.fn.call(this,t.step,t.next,t.g,sd)}catch(e){}t.step++;t.next+=sd}}
   if(this.dist==='yaba'&&Math.random()<.003)this.horn(.25);if(this.dist==='lekki'&&Math.random()<.01){const t=now,f=2200+Math.random()*1500;for(let i=0;i<3;i++)this.osc('sine',f,t+i*.09,.07,.05,this.amb,{f2:f*1.3})}}
 };
 // ---- instruments ----
