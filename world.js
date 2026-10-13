@@ -1,10 +1,12 @@
 // Sapa Survival v3 — 3D Lagos World. Single-player life-sim. Three.js via importmap, no build step.
 import {R,K} from './r3d.js';
+import {makeAudio} from './audio.js';
+import {makeStory} from './story.js';
 const $=s=>document.querySelector(s);
 const cv=$('#cv');
 const SAVE='sapa_world_v3',MAXM=1e9,WW=4600,WH=1400,RY=560,RH=100,SHORE=1150,SEA=1220;
 const DIST=[{id:'yaba',ox:0,n:['Yaba','Yaba']},{id:'vi',ox:1600,n:['Victoria Island','VI']},{id:'lekki',ox:3200,n:['Lekki','Lekki']}];
-const SET=Object.assign({q:innerWidth<760?'med':'high',snd:1,lang:'en'},(()=>{try{return JSON.parse(localStorage.getItem('sapa_settings'))||{}}catch(e){return{}}})());
+const SET=Object.assign({q:innerWidth<760?'med':'high',snd:1,lang:'en',vm:.7,vs:.8,va:.6},(()=>{try{return JSON.parse(localStorage.getItem('sapa_settings'))||{}}catch(e){return{}}})());
 const saveSet=()=>{try{localStorage.setItem('sapa_settings',JSON.stringify(SET))}catch(e){}};
 let S=null;
 const tr=(e,p)=>(((S&&S.lang)||SET.lang)==='pg')?p:e;
@@ -123,23 +125,9 @@ const GEN=['fuel','club','hospital'].map(id=>({x:BY[id].door.x,y:BY[id].door.y})
 function busPos(b){if(b.h)return[b.x,RY+(b.lane?RH*.73:RH*.27)];return[vroad(b.d)+(b.lane?60:20),b.y]}
 const genOn=()=>S&&S.genT>S.t;
 
-// ---------- Audio (WebAudio, all synthesized) ----------
-const AU={ctx:null,beatOn:false,
- init(){if(this.ctx)return;try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;this.ctx=new C();this.mg=this.ctx.createGain();this.mg.gain.value=SET.snd?.6:0;this.mg.connect(this.ctx.destination);this.ambient()}catch(e){this.ctx=null}},
- on(v){if(this.mg)this.mg.gain.value=v?.6:0},
- tone(f,d,type='square',v=.15,t0=0,f2){const c=this.ctx;if(!c||!SET.snd)return;const t=c.currentTime+t0,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(this.mg);o.start(t);o.stop(t+d+.05)},
- noise(d,v=.3,fq=800,t0=0){const c=this.ctx;if(!c||!SET.snd)return;const n=Math.max(1,c.sampleRate*d|0),b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);const s=c.createBufferSource();s.buffer=b;const f=c.createBiquadFilter();f.frequency.value=fq;const g=c.createGain();g.gain.value=v;s.connect(f);f.connect(g);g.connect(this.mg);s.start(c.currentTime+t0)},
- horn(v=1){v*=.09;this.tone(392,.3,'sawtooth',v);this.tone(494,.3,'sawtooth',v*.8);this.tone(392,.22,'sawtooth',v,.38);this.tone(494,.22,'sawtooth',v*.8,.38)},
- crash(){this.noise(.7,.9,1400);this.tone(140,.5,'square',.25,0,40)},
- click(){this.tone(880,.05,'square',.05)},coin(){this.tone(988,.08,'square',.07);this.tone(1319,.15,'square',.07,.08)},
- door(){this.tone(220,.15,'triangle',.15);this.tone(165,.2,'triangle',.12,.12)},
- ambient(){const c=this.ctx,n=c.sampleRate*2,b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0);let l=0;for(let i=0;i<n;i++){l=(l+.02*(Math.random()*2-1))/1.02;a[i]=l*3}
-  const s=c.createBufferSource();s.buffer=b;s.loop=true;const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=450;this.ag=c.createGain();this.ag.gain.value=.1;s.connect(f);f.connect(this.ag);this.ag.connect(this.mg);s.start()},
- tick(){const c=this.ctx;if(!c)return;this.ag.gain.value=IN?.02:.1;
-  if(this.beatOn&&SET.snd){if(!this.nb||this.nb<c.currentTime)this.nb=c.currentTime+.05;while(this.nb<c.currentTime+.25){const t=this.nb-c.currentTime,s=this.step=(this.step||0)+1;
-   if(s%2===1)this.tone(120,.2,'sine',.5,t,45);else this.noise(.04,.12,9000,t);if(s%8===3||s%8===6)this.tone(s%16<8?110:98,.18,'square',.06,t);if(s%4===2)this.noise(.09,.18,2500,t);this.nb+=.235}}
-  if(!IN&&S&&S.look&&Math.random()<.004)this.horn(.25)}};
-addEventListener('pointerdown',()=>AU.init(),{once:true});addEventListener('keydown',()=>AU.init(),{once:true});
+// ---------- Audio (audio.js) ----------
+const AU=makeAudio(SET);
+addEventListener('pointerdown',()=>AU.init());addEventListener('keydown',()=>AU.init());
 
 // ---------- Speech bubbles ----------
 const BUB=[];
@@ -166,7 +154,7 @@ const pEnd=e=>{if(joy&&e.pointerId===joy.id){joy=null;jEl.style.display='none'}p
 cv.addEventListener('wheel',e=>{e.preventDefault();R.cam.dist=cl(R.cam.dist*(1+e.deltaY*.001),4,24)},{passive:false});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 const vis=id=>!$(id).classList.contains('hide');
-const uiFree=()=>S&&S.look&&!vis('#modal')&&!vis('#phone')&&!vis('#creator')&&!vis('#title')&&!DEAD&&!fading&&!vis('#death');
+const uiFree=()=>S&&S.look&&!vis('#modal')&&!vis('#phone')&&!vis('#creator')&&!vis('#title')&&!DEAD&&!fading&&!vis('#death')&&!STORY.dlgOpen();
 
 // ---------- Update ----------
 let evT=45,lastDist=-1,saveT=0,tm=0,IN=null,DEAD=null,fading=false,chatT=3,condT=2;const PR={ry:0,ph:0,moving:false};
@@ -176,9 +164,10 @@ function worldTick(dt){
  for(const v of BUS){if(v.base==null){v.base=v.sp;v.cur=Math.abs(v.sp)}const [x,y]=busPos(v),dir=Math.sign(v.base);let tgt=Math.abs(v.base);
   if(live){const p=S.p,along=(v.h?p.x-x:p.y-y)*dir,perp=Math.abs(v.h?p.y-y:p.x-x);
    if(along>0&&along<190&&perp<34){const onZ=v.h?ZEB.some(z=>Math.abs(p.x-z)<34):(Math.abs(p.y-(RY-120))<28||Math.abs(p.y-(RY+RH+120))<28);tgt*=onZ?0:(v.ok?.75:.5);
-    if((v.hc||0)<=0){v.hc=3.2;AU.horn(1);say(v.ok?tr('Pim pim! Clear the road!','Pim pim! Comot for road!'):tr('PAAAP! Are you mad? Move!','PAAAP! You dey craze? Shift!'),x*K,2.8,y*K,1.8)}}
+    if((v.hc||0)<=0){v.hc=3.2;AU.horn(1,[x*K,1.2,y*K]);say(v.ok?tr('Pim pim! Clear the road!','Pim pim! Comot for road!'):tr('PAAAP! Are you mad? Move!','PAAAP! You dey craze? Shift!'),x*K,2.8,y*K,1.8)}}
    const hl=v.ok?20:44,hw=v.ok?9:20,da=v.h?p.x-x:p.y-y,dp=v.h?p.y-y:p.x-x;
    if(Math.abs(da)<hl+6&&Math.abs(dp)<hw+6){if(v.cur>45){die(v);}else{const s=Math.sign(dp)||1;if(v.h)p.y=y+s*(hw+7);else p.x=x+s*(hw+7)}}}
+  for(const o of BUS){if(o===v||o.h!==v.h||o.lane!==v.lane||(!v.h&&o.d!==v.d)||Math.sign(o.base)!==dir)continue;const [ox,oy]=busPos(o),ah=(v.h?ox-x:oy-y)*dir;if(ah>0&&ah<130){tgt=Math.min(tgt,ah<75?0:o.cur)}}
   v.hc=(v.hc||0)-dt;v.cur+=(tgt-v.cur)*Math.min(1,dt*(tgt<v.cur?3:1.2));v.sp=dir*v.cur;
   if(v.h){v.x+=v.sp*dt;if(v.x>WW+60)v.x=-60;if(v.x<-60)v.x=WW+60}else{v.y+=v.sp*dt;if(v.y>SHORE)v.y=-40;if(v.y<-40)v.y=SHORE}}}
 function lerpA(a,b,t){let d=((b-a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;return a+d*Math.min(1,t)}
@@ -190,7 +179,7 @@ function update(dt){
  if(joy&&Math.hypot(joy.dx,joy.dy)>.15){mx=joy.dx;my=joy.dy}
  const gp=navigator.getGamepads&&[...navigator.getGamepads()].find(Boolean);if(gp){const a=gp.axes;if(Math.hypot(a[0],a[1])>.2){mx=a[0];my=a[1]}if(Math.abs(a[2])>.2)R.cam.yaw-=a[2]*dt*2.5;if(Math.abs(a[3])>.2)R.cam.pitch=cl(R.cam.pitch+a[3]*dt*1.5,.1,1.3);if(gp.buttons[0]&&gp.buttons[0].pressed&&!gp._a&&(near||nearAct))interact();gp._a=gp.buttons[0]&&gp.buttons[0].pressed}
  const m=Math.hypot(mx,my);PR.moving=false;
- if(m>.1){if(m>1){mx/=m;my/=m}const yaw=R.cam.yaw,fx=mx*Math.cos(yaw)+my*Math.sin(yaw),fz=-mx*Math.sin(yaw)+my*Math.cos(yaw);PR.ry=lerpA(PR.ry,Math.atan2(fx,fz),dt*12);PR.moving=true;PR.ph+=dt*11;
+ if(m>.1){if(m>1){mx/=m;my/=m}const yaw=R.cam.yaw,fx=mx*Math.cos(yaw)+my*Math.sin(yaw),fz=-mx*Math.sin(yaw)+my*Math.cos(yaw);PR.ry=lerpA(PR.ry,Math.atan2(fx,fz),dt*12);PR.moving=true;const _st=Math.floor(PR.ph/Math.PI);PR.ph+=dt*11;if(Math.floor(PR.ph/Math.PI)!==_st)AU.step();
   if(IN){const sp=(S.energy<10?2.4:3.6)*dt,p=IN.p,sw=IN.sp.w/2-.35,sd=IN.sp.d/2-.35;const bl=(x,z)=>Math.abs(x)>sw||Math.abs(z)>sd||IN.cols.some(c=>Math.abs(x-c.x)<c.hw&&Math.abs(z-c.z)<c.hd);
    const nx=p.x+fx*sp,nz=p.z+fz*sp;if(!bl(nx,p.z))p.x=nx;if(!bl(p.x,nz))p.z=nz}
   else{const sp=(S.energy<10?70:115)*dt,p=S.p;const nx=p.x+fx*sp,ny=p.y+fz*sp;if(!blocked(nx,p.y))p.x=nx;if(!blocked(p.x,ny))p.y=ny;S.walked=(S.walked||0)+sp;
@@ -201,7 +190,7 @@ function update(dt){
  else{let bd=52;for(const b of B){const d=Math.hypot(b.door.x-S.p.x,b.door.y-S.p.y);if(d<bd){bd=d;near=b}}
   const di=distAt(S.p.x);if(di!==lastDist){if(lastDist>=0)toast('📍 '+L(DIST[di].n));lastDist=di}
   chatT-=dt;if(chatT<=0){chatT=3.5+Math.random()*3;let bn=null,bdd=420;NPC.forEach((n,i)=>{if(i>=R.npcMax)return;const d=Math.hypot(n.x-S.p.x,n.y-S.p.y);if(d<bdd&&Math.random()<.6){bdd=d;bn=n}});if(bn)say(L(CHAT[Math.floor(Math.random()*CHAT.length)]),bn.x*K,2.3,bn.y*K,3)}
-  condT-=dt;if(condT<=0){condT=4.5;for(let i=0;i<3;i++){const d=BY['park'+i].door;if(Math.hypot(d.x-S.p.x,d.y-S.p.y)<500){say(L(COND[i]),d.x*K-2,2.6,(d.y+40)*K,3);AU.tone(660,.08,'square',.04)}}}}
+  condT-=dt;if(condT<=0){condT=4.5;for(let i=0;i<3;i++){const d=BY['park'+i].door;if(Math.hypot(d.x-S.p.x,d.y-S.p.y)<500){say(L(COND[i]),d.x*K-2,2.6,(d.y+40)*K,3);AU.shout([d.x*K-2,1.6,(d.y+40)*K])}}}}
  if(S.energy<=0)faint();
  saveT+=dt;if(saveT>8){saveT=0;save()}}
 
@@ -230,8 +219,8 @@ function interact(){AU.click();if(IN){if(nearAct)nearAct.act.f();fix();save();hu
  if(b.kind==='club'){const hr=hour();if(!(hr>=21||hr<4)){toast(tr('🚫 Bouncer: "Club opens 9pm. Come back later!"','🚫 Bouncer: "Club never open. Come back 9pm!"'));say(tr('We open 9pm!','We dey open 9pm!'),b.door.x*K,2.6,b.door.y*K,2.5);return}}
  enterBuilding(b)}
 function enterBuilding(b){AU.door();fade(()=>{const sp=interiorSpec(b);sp.bo=S.bo&&!b.gen&&!genOn();const r=R.enterInterior(sp);IN={b,sp,cols:r.cols,acts:r.acts,p:{x:0,z:sp.d/2-1.3}};PR.ry=Math.PI;R.cam.yaw=0;R.cam.pitch=Math.max(R.cam.pitch,.6);
-  R.setInteriorPower(sp.bo,genOn());AU.beatOn=b.kind==='club';chatT=1;hud();toast('🚪 '+L(b.lab).split(' (')[0])})}
-function leaveInterior(now){if(!IN)return;const go=()=>{if(!IN)return;R.exitInterior();const d=IN.b.door;S.p.x=d.x;S.p.y=d.y+14;IN=null;AU.beatOn=false;PR.ry=0;nearAct=null;hud()};if(now)go();else{AU.door();fade(go)}}
+  R.setInteriorPower(sp.bo,genOn());chatT=1;hud();toast('🚪 '+L(b.lab).split(' (')[0]);STORY.ev('enter',b)})}
+function leaveInterior(now){if(!IN)return;const go=()=>{if(!IN)return;R.exitInterior();const d=IN.b.door;S.p.x=d.x;S.p.y=d.y+14;IN=null;PR.ry=0;nearAct=null;hud()};if(now)go();else{AU.door();fade(go)}}
 function doSleep(){fade(()=>{sleep();fix();save();hud()})}
 const watchTV={l:tr('📺 Watch TV (30 min)','📺 Watch TV small'),f:()=>{if(S.bo&&!genOn())return toast(tr('No light, no TV. NEPA!','No light, no TV. NEPA o!'));stat('peace',4);adv(30);toast('📺 '+tr('Nollywood marathon','Nollywood film')+' +☮️4')}};
 const genAct={l:tr('🔌 Start generator (1L fuel)','🔌 On gen (1L fuel)'),f:()=>{if(!S.bo)return toast(tr('There is light. No need for gen.','Light dey. No need gen.'));if(S.fuel<1)return toast(tr('No fuel! Buy at the fuel station.','No fuel! Go buy for fuel station.'));S.fuel--;S.genT=S.t+120;stat('peace',6);R.setInteriorPower(false,true);AU.noise(1.2,.25,250);toast(tr('🔌 Gen is roaring! Light for 2 hours.','🔌 Gen don start! Light for 2 hours.'))}};
@@ -259,7 +248,7 @@ function interiorSpec(b){const k=b.kind,title=L(b.lab).split(' (')[0],exit={t:'e
  else if(k==='fuel')sp={w:8,d:7,wall:'#e8f5e9',floor:'#cfd8dc',fpat:'tile',powered:1,items:[{t:'counter',x:0,z:-1.9,w:3,c:'#0b7a3e',act:{l:tr('⛽ Buy fuel for your gen','⛽ Buy fuel for gen'),f:()=>fuelP(b)},r:2.3},{t:'shelf',x:-2.5,z:-3.2},{t:'shelf',x:2.5,z:-3.2},{t:'fridge',x:3.5,z:.6}],npcs:[{x:0,z:-2.6,look:NL('#3b2219','#0b7a3e',3,1),say:['Fuel dey! No queue today.','Fuel dey! No queue today.']}]};
  else if(k==='studio')sp={w:10,d:8,wall:'#2b2b2b',floor:'#37474f',lampC:'#ff80ab',items:[{t:'console',x:0,z:-2.6,act:{l:tr('🎚️ Work a session','🎚️ Do session'),f:()=>workP(b)}},{t:'mic',x:-2.7,z:-.6,act:{l:tr('🎤 Hype on the mic (work)','🎤 Hype for mic (work)'),f:()=>workP(b)}},{t:'speaker',x:-4.4,z:-3.4},{t:'speaker',x:4.4,z:-3.4},{t:'sofa',x:2.5,z:2.6,ry:Math.PI}],npcs:[{x:0,z:-3.4,look:NL('#5a3825','#ff4081',1),say:['Run am back one more time!','Run am back one more time!']}]};
  else if(k==='hospital')sp={w:12,d:9,wall:'#e0f7fa',floor:'#eceff1',fpat:'tile',powered:1,items:[{t:'counter',x:0,z:-2.4,w:3.4,c:'#fafafa',act:{l:tr('🏥 Reception','🏥 Reception'),f:()=>hospitalP(b)},r:2.6},{t:'hbed',x:-4.8,z:-2.6,act:{l:tr('🛏️ Rest in ward','🛏️ Rest for ward'),f:()=>hospitalP(b)}},{t:'hbed',x:-4.8,z:.6},{t:'hbed',x:4.8,z:-2.6},{t:'hbed',x:4.8,z:.6},{t:'plant',x:-5.4,z:3.6}],npcs:[{x:0,z:-3.1,look:NL('#7a4b2e','#ffffff',4),say:['Shine your eye for road o!','Shine your eye for road o!']},{x:4.8,z:.6,look:NL('#3b2219','#90caf9',0),say:['Okada jam me for Lekki...','Okada jam me for Lekki...']}]};
- sp.kind=k;sp.title=title;sp.items.push(Object.assign(exit,{x:0,z:sp.d/2-.4,r:1.4}));sp.wall=sp.wall||'#eee';sp.floor=sp.floor||'#999';if(sp.tier==null)sp.tier=1;return sp}
+ sp.kind=k;sp.title=title;STORY.extra(b,sp);sp.items.push(Object.assign(exit,{x:0,z:sp.d/2-.4,r:1.4}));sp.wall=sp.wall||'#eee';sp.floor=sp.floor||'#999';if(sp.tier==null)sp.tier=1;return sp}
 function clubDance(){if(!(S.clubT>S.t))return toast(tr('Pay entry at the bar first.','Pay gate fee for bar first.'));if((S.dances|0)>=3&&S.danceT===S.clubT)return toast(tr('Your legs are done for tonight!','Your leg don tire for tonight!'));if(S.energy<8)return toast(tr('Too tired to dance.','You don tire to dance.'));
  if(S.danceT!==S.clubT){S.danceT=S.clubT;S.dances=0}S.dances++;stat('respect',3);stat('peace',3);stat('energy',-8);adv(20);say(tr(`DJ: Make some noise for ${S.look.name}!`,`DJ: Shout for ${S.look.name}!`),0,2.6,-4.6,3);toast('💃 +⭐3 +☮️3')}
 
@@ -276,7 +265,7 @@ function drawMini(){const s=mm.width,sc=s/900,cx=S.p.x,cy=S.p.y;mg.setTransform(
  mg.fillStyle='#29b6f6';mg.fillRect(-2000,SEA,9000,2000);mg.fillRect(1400,-500,200,SEA+500);mg.fillRect(3000,-500,200,SEA+500);mg.fillStyle='#ffe082';mg.fillRect(-2000,SHORE,9000,SEA-SHORE);
  mg.fillStyle='#555';mg.fillRect(-2000,RY,9000,RH);for(let d=0;d<3;d++)mg.fillRect(vroad(d),0,80,SHORE);
  for(const b of B){mg.fillStyle=b.kind==='hospital'?'#e53935':b.kind==='park'?'#ffd400':b.roof;mg.fillRect(b.x,b.y,b.w,b.h)}
- mg.fillStyle='#ffd400';for(const v of BUS){const [x,y]=busPos(v);mg.fillRect(x-25,y-12,50,24)}mg.restore();
+ mg.fillStyle='#ffd400';for(const v of BUS){const [x,y]=busPos(v);mg.fillRect(x-25,y-12,50,24)}{const tg=STORY.on&&STORY.target();if(tg&&BY[tg]){const d=BY[tg].door;const dx=cl(d.x-cx,-430,430),dy=cl(d.y-cy,-430,430);mg.fillStyle='#ff1744';mg.strokeStyle='#fff';mg.lineWidth=14;mg.beginPath();mg.arc(cx+dx,cy+dy,38,0,7);mg.fill();mg.stroke()}}mg.restore();
  mg.fillStyle='#fff';mg.strokeStyle='#111';mg.lineWidth=2;mg.save();mg.translate(s/2,s/2);mg.rotate(R.cam.yaw-PR.ry+Math.PI);mg.beginPath();mg.moveTo(0,-8);mg.lineTo(6,6);mg.lineTo(-6,6);mg.closePath();mg.fill();mg.stroke();mg.restore();
  mg.fillStyle='#111';mg.font='900 11px system-ui';mg.textAlign='center';mg.fillText('N',s/2+Math.sin(R.cam.yaw)*(s/2-9),s/2-Math.cos(R.cam.yaw)*(s/2-9)+4)}
 
@@ -291,7 +280,7 @@ function blackout(h){S.bo=1;S.boEnd=S.lh+h;stat('peace',-4);toast(tr('⚡ NEPA h
 function dayTick(){const d=day(),over=d-S.rentDue;
  if(d%7===1){if(S.debt>0){S.debt=Math.min(5e6,Math.round(S.debt*1.05));toast(tr('Loan interest added (5%)','Loan interest don add (5%)'))}if(S.save>0)S.save=Math.min(MAXM,Math.round(S.save*1.01))}
  if(S.debt>0)stat('peace',-1);
- if(!S.homeless&&over>=7){if(S.home>0){S.home=0;S.rentDue=d+7;toast(tr('🚪 EVICTED! Landlord threw your things out. Back to face-me-I-face-you.','🚪 Landlord don pursue you! You don go back face-me-I-face-you.'))}else{S.homeless=true;toast(tr('🚪 EVICTED! You are now homeless — sleep at a danfo park.','🚪 Dem don pursue you comot! Go sleep for motor park.'))}stat('peace',-25);stat('respect',-10)}
+ if(!S.homeless&&over>=7){if(S.home>0){S.home=0;S.rentDue=d+7;toast(tr('🚪 EVICTED! Landlord threw your things out. Back to face-me-I-face-you.','🚪 Landlord don pursue you! You don go back face-me-I-face-you.'))}else{S.homeless=true;toast(tr('🚪 EVICTED! You are now homeless — sleep at a danfo park.','🚪 Dem don pursue you comot! Go sleep for motor park.'))}stat('peace',-25);stat('respect',-10);STORY.ev('evicted')}
  else if(!S.homeless&&over>=3)toast(tr('⚠️ Rent overdue! Landlord says pay or pack.','⚠️ Rent don pass! Landlord say pay or pack.'));fix();save()}
 function faint(){if(IN)leaveInterior(true);S.energy=25;const fee=Math.min(5000,S.money);pay(fee);adv(6*60);const h=HOMES[S.home];if(!S.homeless){const d=BY[h.b].door;S.p.x=d.x;S.p.y=d.y+20}
  toast(tr(`😵 You collapsed! Clinic bill ${N(fee)}.`,`😵 You faint! Clinic collect ${N(fee)}.`))}
@@ -310,7 +299,8 @@ function hud(){if(!S||!S.look)return;const bar=(e,k,c)=>`<div class="st ${S[k]<2
  const nf=nightF();$('#clock').innerHTML=`<b>${fmtT()}</b> ${S.bo?'🕯️':nf>.5?'🌙':'☀️'}<small>${tr('Day','Day')} ${day()}</small>`;
  $('#where').textContent=IN?'🚪 '+L(IN.b.lab).split(' (')[0]:'📍 '+L(DIST[distAt(S.p.x)].n)+(S.bo?' · ⚡'+tr('NEPA','NEPA'):'');
  const a=$('#act');if(uiFree()&&(nearAct||near)){a.classList.remove('hide');a.textContent=nearAct?nearAct.act.l:(near.kind==='park'?'🚌 ':near.kind==='beach'?'🏖️ ':'🚪 ')+tr('Enter ','Enter ')+L(near.lab).split(' (')[0]}else a.classList.add('hide');
- if(!IN)drawMini();$('#mini').style.visibility=IN?'hidden':'visible';
+ const ob=$('#obj');if(STORY.on){ob.classList.remove('hide');const tg=STORY.target(),tb=tg&&BY[tg];let ar='';if(tb){if(IN&&IN.b===tb)ar='📍';else if(!IN){const dx=tb.door.x-S.p.x,dz=tb.door.y-S.p.y,y=R.cam.yaw,sx=dx*Math.cos(y)-dz*Math.sin(y),su=-dx*Math.sin(y)-dz*Math.cos(y);ar=`<i class="wa" style="transform:rotate(${Math.atan2(sx,su)}rad)">⬆</i><em>${Math.round(Math.hypot(dx,dz)*K)}m</em>`}}ob.innerHTML=`<div>${STORY.tracker()}</div>${ar}`}else ob.classList.add('hide');
+ if(!IN)drawMini();$('#mini').style.visibility=IN?'hidden':'';
  if(IN)R.setInteriorPower(S.bo&&!IN.b.gen&&!IN.sp.powered&&!genOn(),genOn())}
 $('#act').onclick=()=>{if(uiFree()&&(near||nearAct))interact()};
 
@@ -327,7 +317,7 @@ function homeP(b){panel(()=>{const isHome=!S.homeless&&HOMES[S.home].b===b.id,h=
 function sleep(){const h=HOMES[S.home];let q=h.sleep;if(S.bo){if(S.fuel>=4)S.fuel-=4;else{q*=.55;stat('peace',-8)}}
  const hr=hour(),hrs=hr<7?7-hr:Math.min(10,31-hr);adv(Math.max(6,hrs)*60);S.energy=cl(S.energy+100*q,0,100);stat('peace',S.home*4+2);toast(tr('Good morning! ☀️','Good morning o! ☀️'))}
 function bukaP(b){const F=b.id==='buka'?[['🍲',['Amala + ewedu + gbegiri','Amala, ewedu, gbegiri'],1500,40,2],['🍛',['Jollof rice + chicken','Jollof + chicken'],3000,55,5],['💧',['Pure water','Pure water'],50,3,1]]:[['🍢',['Suya stick','Suya'],2000,25,4],['🍛',['Party jollof','Party jollof'],3500,55,5],['🥤',['Zobo','Zobo'],500,8,2]];
- panel(()=>({em:'🍲',title:L(b.lab),text:tr('What will you eat?','Wetin you wan chop?'),acts:F.map(f=>({l:`${f[0]} ${L(f[1])} — ${N(f[2])}`,s:`+🍲${f[3]} +☮️${f[4]}`,dis:S.money<f[2]||S.hunger>=98,f:()=>{if(pay(f[2])){stat('hunger',f[3]);stat('peace',f[4]);stat('energy',3);adv(20)}}}))}))}
+ panel(()=>({em:'🍲',title:L(b.lab),text:tr('What will you eat?','Wetin you wan chop?'),acts:F.map(f=>({l:`${f[0]} ${L(f[1])} — ${N(f[2])}`,s:`+🍲${f[3]} +☮️${f[4]}`,dis:S.money<f[2]||S.hunger>=98,f:()=>{if(pay(f[2])){STORY.ev('ate');AU.coin();stat('hunger',f[3]);stat('peace',f[4]);stat('energy',3);adv(20)}}}))}))}
 function carFor(b){return Object.keys(CAR).find(k=>CAR[k].loc===b.id)}
 function workP(b){const k=carFor(b),C=CAR[k];panel(()=>{const c=S.car[k],hr=hour(),open=hr>=C.hrs[0]&&hr<C.hrs[1],nx=c.lv<3?tr(`Next promotion: ${XPN[c.lv+1]} XP & ⭐${RQN[c.lv+1]}`,`Next promotion: ${XPN[c.lv+1]} XP & ⭐${RQN[c.lv+1]}`):tr('Top of the ladder!','You don reach top!');
  const acts=[{l:`${C.em} ${tr('Work an 8-hour shift','Do 8-hour shift')}`,s:open?tr(`Pay up to ${N(C.pay[c.lv])} · needs ⚡25 🍲10`,`Pay reach ${N(C.pay[c.lv])} · need ⚡25 🍲10`):tr(`Closed. Open ${C.hrs[0]}:00–${C.hrs[1]}:00`,`E don close. E dey open ${C.hrs[0]}:00–${C.hrs[1]}:00`),dis:!open||!need(25,10),f:()=>{shift(k);return 'keep'}}];
@@ -339,8 +329,8 @@ function shift(k){const C=CAR[k],c=S.car[k];let round=0,score=0,tmr;const sh=$('
   sh.innerHTML=`<div class="card"><h2>${C.em} ${tr('Shift','Shift')} ${round}/6 · ✅${score}</h2><p style="font-size:22px">${tr('Quick!','Sharp sharp!')} ${L(ans)}</p><div class="timer"><i id="tb" style="width:100%"></i></div></div><div class="grid3">${pool.map((t,i)=>`<button data-t="${i}">${t[2]}<br>${L(t)}</button>`).join('')}</div>`;
   requestAnimationFrame(()=>{const tb=$('#tb');if(tb){tb.style.transitionDuration='2.6s';tb.style.width='0%'}});
   tmr=setTimeout(next,2600);sh.querySelectorAll('[data-t]').forEach(bt=>bt.onclick=()=>{clearTimeout(tmr);if(pool[+bt.dataset.t]===ans)score++;next()})}
- function done(){const p=Math.round(C.pay[c.lv]*(0.4+0.6*score/6));earn(p);c.xp=Math.min(999,c.xp+score);stat('energy',-25);stat('hunger',-15);adv(8*60);S.shifts++;let promo='';
-  if(c.lv<3&&c.xp>=XPN[c.lv+1]&&S.respect>=RQN[c.lv+1]){c.lv++;stat('respect',6);promo=`<p>🎉 ${tr('PROMOTED to','Dem PROMOTE you to')} <b>${L(C.t[c.lv])}</b>!</p>`}
+ function done(){const p=Math.round(C.pay[c.lv]*(0.4+0.6*score/6));earn(p);c.xp=Math.min(999,c.xp+score);stat('energy',-25);stat('hunger',-15);adv(8*60);S.shifts++;setTimeout(()=>STORY.ev('shift',k),50);let promo='';
+  if(c.lv<3&&c.xp>=XPN[c.lv+1]&&S.respect>=RQN[c.lv+1]){c.lv++;stat('respect',6);setTimeout(()=>STORY.ev('promo'),900);promo=`<p>🎉 ${tr('PROMOTED to','Dem PROMOTE you to')} <b>${L(C.t[c.lv])}</b>!</p>`}
   fix();save();hud();sh.innerHTML=`<div class="card"><div class="em">💼</div><h2>${tr('Shift done!','Shift don finish!')}</h2><p>${score}/6 ${tr('tasks','tasks')} · ${tr('Earned','You collect')} <b>${N(p)}</b> · +${score} XP</p>${promo}${statLine()}</div><div class="acts"><button id="sd">OK</button></div>`;$('#sd').onclick=()=>drawPanel()}
  next()}
 function bankP(b){panel(()=>{const lim=Math.max(0,50000*(1+Object.values(S.car).reduce((a,c)=>a+c.lv,0))-S.debt),dep=Math.min(S.money,50000),wd=Math.min(S.save,50000),rp=Math.min(S.money,S.debt);
@@ -356,15 +346,15 @@ function marketP(b){panel(()=>{const acts=[];GOODS.forEach((g,i)=>{const p=goodP
   if(S.inv[i]>0)acts.push({l:`${g[1]} ${tr('Sell','Sell')} 1 — ${N(sp)}`,alt:1,f:()=>{if(S.inv[i]>0){S.inv[i]--;earn(sp)}}})});
  return{em:'🛍️',title:L(b.lab),text:tr("Prices change every day. Buy low today, sell high another day.",'Price dey change every day. Buy cheap, sell when e cost.'),acts:workPActs(b).concat(acts)}})}
 function clubP(b){panel(()=>{const hr=hour(),open=hr>=21||hr<4;return{em:'🪩',title:L(b.lab),text:open?tr('The DJ is on fire. Who you be?','DJ dey burst brain. Who you be?'):tr('Opens 9pm – 4am.','E dey open 9pm – 4am.'),acts:[
- {l:tr('🎟️ Regular entry ','🎟️ Regular gate ')+N(10000),s:'+⭐5 +☮️6 −⚡15',dis:!open||S.money<10000||S.energy<15,f:()=>{if(pay(10000)){stat('respect',5);stat('peace',6);stat('energy',-15);adv(120);S.clubT=S.t+180;clubEvent()}}},
- {l:tr('🍾 VIP table ','🍾 VIP table ')+N(80000),s:'+⭐18 +☮️10 −⚡20',dis:!open||S.money<80000||S.energy<20,f:()=>{if(pay(80000)){stat('respect',18);stat('peace',10);stat('energy',-20);adv(180);S.clubT=S.t+240;clubEvent()}}}]}})}
+ {l:tr('🎟️ Regular entry ','🎟️ Regular gate ')+N(10000),s:'+⭐5 +☮️6 −⚡15',dis:!open||S.money<10000||S.energy<15,f:()=>{if(pay(10000)){stat('respect',5);stat('peace',6);stat('energy',-15);adv(120);S.clubT=S.t+180;STORY.ev('club',0);clubEvent()}}},
+ {l:tr('🍾 VIP table ','🍾 VIP table ')+N(80000),s:'+⭐18 +☮️10 −⚡20',dis:!open||S.money<80000||S.energy<20,f:()=>{if(pay(80000)){stat('respect',18);stat('peace',10);stat('energy',-20);adv(180);S.clubT=S.t+240;STORY.ev('club',1);clubEvent()}}}]}})}
 function clubEvent(){const r=Math.random();if(r<.15){earn(20000);toast(tr('💸 A celebrity sprayed you ₦20,000!','💸 Celebrity spray you ₦20,000!'))}else if(r<.28){pay(Math.min(S.money,15000));stat('peace',-10);toast(tr('📵 Your phone got "missing". Paid ₦15,000 to replace.','📵 Dem japa with your phone. ₦15k don go.'))}else if(r<.38){stat('respect',8);toast(tr('🎤 You got called on stage!','🎤 Dem call you enter stage!'))}}
 function parkP(b){panel(()=>{const from=b.d,acts=DIST.map((d,i)=>i===from?null:{l:`🚌 ${tr('Danfo to','Danfo go')} ${L(d.n)} — ${N(FARE[from][i])}`,s:tr('~40 min, squeeze inside','~40 min, squeeze body'),dis:S.money<FARE[from][i],f:()=>{if(pay(FARE[from][i])){adv(40);stat('energy',-4);const t=BY['park'+i].door;S.p.x=t.x;S.p.y=t.y+24;closeModal();toast('📍 '+L(d.n));return 'keep'}}}).filter(Boolean);
  if(S.homeless)acts.push({l:tr('🪑 Sleep on a bench','🪑 Sleep for bench'),s:'+⚡35 −☮️10',f:()=>{adv(6*60);stat('energy',35);stat('peace',-10)}});
- return{em:'🚌',title:L(b.lab),text:tr('"Oshodi! Obalende! Enter with your change!"','"Oshodi! Obalende! Enter with your change o!"'),acts}})}
+ acts.push(...STORY.parkActs(b));return{em:'🚌',title:L(b.lab),text:tr('"Oshodi! Obalende! Enter with your change!"','"Oshodi! Obalende! Enter with your change o!"'),acts}})}
 function worshipP(b){panel(()=>({em:'🕌⛪',title:L(b.lab),text:tr('A quiet place to reset.','Quiet place to rest your mind.'),acts:[{l:tr('🙏 Pray / reflect (1h)','🙏 Pray small (1h)'),s:'+☮️15',f:()=>{stat('peace',15);adv(60)}},{l:tr('🎁 Give offering ','🎁 Drop offering ')+N(1000),s:'+⭐2 +☮️4',dis:S.money<1000,f:()=>{if(pay(1000)){stat('respect',2);stat('peace',4)}}}]}))}
 function beachP(b){panel(()=>({em:'🏖️',title:L(b.lab),text:tr('Waves, horses, loud speakers. Peace.','Wave, horse, speaker dey blast. Peace.'),acts:[{l:tr('🌊 Chill at the beach ','🌊 Chill for beach ')+N(2000),s:'+☮️25 +⚡5 (2h)',dis:S.money<2000,f:()=>{if(pay(2000)){stat('peace',25);stat('energy',5);adv(120)}}},{l:tr('🐎 Horse ride ','🐎 Ride horse ')+N(5000),s:'+☮️12 +⭐3',dis:S.money<5000,f:()=>{if(pay(5000)){stat('peace',12);stat('respect',3);adv(30)}}},{l:tr('🍢 Beach suya ','🍢 Beach suya ')+N(2500),s:'+🍲30',dis:S.money<2500,f:()=>{if(pay(2500)){stat('hunger',30);adv(15)}}}]}))}
-function fuelP(b){const P=1200;panel(()=>({em:'⛽',title:L(b.lab),text:tr(`Petrol ${N(P)}/L. Jerrycan: ${S.fuel}/20 L. For your gen when NEPA strikes.`,`Fuel ${N(P)}/L. Jerrycan: ${S.fuel}/20 L. For gen when NEPA take light.`),acts:[1,5].map(q=>({l:`⛽ ${tr('Buy','Buy')} ${q}L — ${N(P*q)}`,dis:S.money<P*q||S.fuel+q>20,f:()=>{if(S.fuel+q<=20&&pay(P*q))S.fuel+=q}}))}))}
+function fuelP(b){const P=1200;panel(()=>({em:'⛽',title:L(b.lab),text:tr(`Petrol ${N(P)}/L. Jerrycan: ${S.fuel}/20 L. For your gen when NEPA strikes.`,`Fuel ${N(P)}/L. Jerrycan: ${S.fuel}/20 L. For gen when NEPA take light.`),acts:[1,5].map(q=>({l:`⛽ ${tr('Buy','Buy')} ${q}L — ${N(P*q)}`,dis:S.money<P*q||S.fuel+q>20,f:()=>{if(S.fuel+q<=20&&pay(P*q)){S.fuel+=q;STORY.ev('fuel');AU.coin()}}}))}))}
 
 // ---------- Street events ----------
 const STREET=[
@@ -380,16 +370,17 @@ let tab='stats';
 function openPhone(t){if(t)tab=t;$('#phone').classList.remove('hide');drawPhone()}
 function closePhone(){$('#phone').classList.add('hide');$('#phBody').innerHTML=''}
 $('#phClose').onclick=closePhone;$('#phoneBtn').onclick=()=>uiFree()&&openPhone();
-function drawPhone(){const T=[['stats','📊',tr('Stats','Stats')],['bank','🏦',tr('Bank','Bank')],['sapa','🎴','Sapa Challenge'],['set','⚙️',tr('Settings','Settings')]];
+function drawPhone(){const T=[['stats','📊',tr('Stats','Stats')],['bank','🏦',tr('Bank','Bank')],['quest','📜',tr('Quests','Quests')],['sapa','🎴','Sapa'],['set','⚙️',tr('Settings','Settings')]];
  $('#tabs').innerHTML=T.map(t=>`<button data-tab="${t[0]}" class="${tab===t[0]?'on':''}">${t[1]} ${t[2]}</button>`).join('');$('#tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;drawPhone()});
  $('#phTitle').textContent=`📱 ${S.look.name} · ${fmtT()}`;const bd=$('#phBody');
  if(tab==='stats'){const h=HOMES[S.home],nw=S.money+S.save-S.debt;bd.innerHTML=`<table><tr><td>💰 ${tr('Cash','Cash')}</td><td>${N(S.money)}</td></tr><tr><td>🏦 ${tr('Savings','Savings')}</td><td>${N(S.save)}</td></tr><tr><td>📝 ${tr('Debt','Debt')}</td><td>${N(S.debt)}</td></tr><tr><td>📈 ${tr('Net worth','Net worth')}</td><td>${nw<0?'−':''}${N(Math.abs(nw))}</td></tr><tr><td>🏠 ${tr('Home','House')}</td><td>${S.homeless?tr('Homeless','No house'):L(h.n)}</td></tr><tr><td>📅 ${tr('Rent paid until','Rent pay reach')}</td><td>${tr('Day','Day')} ${S.rentDue}</td></tr><tr><td>🏥 ${tr('Times hit by vehicles','Times wey motor jam you')}</td><td>${S.deaths|0}</td></tr><tr><td>⛽ ${tr('Fuel','Fuel')}</td><td>${S.fuel} L</td></tr><tr><td>💡 NEPA</td><td>${S.bo?tr('Blackout','No light'):tr('Light dey','Light dey')}</td></tr>
   ${Object.keys(CAR).map(k=>`<tr><td>${CAR[k].em} ${L(CAR[k].n)}</td><td>${L(CAR[k].t[S.car[k].lv])} · ${S.car[k].xp}XP</td></tr>`).join('')}
   ${['energy','hunger','peace','respect'].map(k=>`<tr><td>${k}</td><td>${S[k]|0}/100</td></tr>`).join('')}</table><p style="font-size:12px">${tr('Tip: work at Tech Hub (Yaba), Bank (VI), Market (Yaba) or Studio (Lekki). Danfo parks connect districts.','Tip: work for Tech Hub (Yaba), Bank (VI), Market (Yaba) or Studio (Lekki). Motor park go carry you anywhere.')}</p>`}
  else if(tab==='bank')bd.innerHTML=`<div class="card"><h2>🏦 ${N(S.save)}</h2><p>${tr('Savings','Savings')} · ${tr('Debt','Debt')} ${N(S.debt)}</p><p style="font-size:13px">${tr('Deposits, withdrawals and loans are done in person at Gidi Trust Bank (Victoria Island). Interest is applied weekly.','Go Gidi Trust Bank for VI to save, collect or borrow. Interest dey enter every week.')}</p></div>`;
+ else if(tab==='quest')bd.innerHTML=`<div class="qlog">${STORY.log()}</div>`;
  else if(tab==='sapa')bd.innerHTML=`<iframe id="sapaFrame" src="challenge/index.html" title="Sapa Challenge"></iframe>`;
- else{bd.innerHTML=`<div class="acts"><p><b>🎮 ${tr('Graphics','Graphics')}</b></p><div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?tr('Low (fast)','Low (fast)'):q==='med'?tr('Medium','Medium'):tr('High','High')}</button>`).join('')}</div><button id="snd">${SET.snd?'🔊 '+tr('Sound: ON','Sound: ON'):'🔇 '+tr('Sound: OFF','Sound: OFF')}</button><button id="lng">🌐 ${tr('Language: English → switch to Pidgin','Language: Pidgin → switch to English')}</button><button id="sv">💾 ${tr('Save now','Save am now')}</button><button id="rs" class="alt">🗑️ ${tr('Reset game (new character)','Start again (new person)')}</button></div><p style="font-size:12px">${tr('Single-player. Saved on this device only. No chat, no real-money purchases.','Na only you dey play. E save for this phone only. No chat, no real money.')}</p>`;
-  $('#lng').onclick=()=>{S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();save();drawPhone();hud()};bd.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);drawPhone()});$('#snd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.on(SET.snd);drawPhone()};$('#sv').onclick=()=>{save();toast(tr('Saved ✅','E don save ✅'))};
+ else{bd.innerHTML=`<div class="acts"><p><b>🎮 ${tr('Graphics','Graphics')}</b></p><div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?tr('Low (fast)','Low (fast)'):q==='med'?tr('Medium','Medium'):tr('High','High')}</button>`).join('')}</div><p><b>🔊 ${tr('Audio','Audio')}</b></p>${[['vm','🎵',tr('Music','Music')],['vs','💥',tr('Sound effects','Sound effects')],['va','🌆',tr('Ambience','Ambience')]].map(([k,e,n])=>`<label class="sl">${e} ${n}<input type="range" min="0" max="1" step="0.05" value="${SET[k]??.7}" data-v="${k}"></label>`).join('')}<button id="snd">${SET.snd?'🔇 '+tr('Mute all','Mute everything'):'🔊 '+tr('Unmute','Unmute')}</button><button id="lng">🌐 ${tr('Language: English → switch to Pidgin','Language: Pidgin → switch to English')}</button><button id="sv">💾 ${tr('Save now','Save am now')}</button><button id="rs" class="alt">🗑️ ${tr('Reset game (new character)','Start again (new person)')}</button></div><p style="font-size:12px">${tr('Single-player. Saved on this device only. No chat, no real-money purchases.','Na only you dey play. E save for this phone only. No chat, no real money.')}</p>`;
+  $('#lng').onclick=()=>{S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();save();drawPhone();hud()};bd.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);drawPhone()});$('#snd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();drawPhone()};bd.querySelectorAll('[data-v]').forEach(i=>i.oninput=()=>{SET[i.dataset.v]=+i.value;saveSet();AU.init();AU.vol()});$('#sv').onclick=()=>{save();toast(tr('Saved ✅','E don save ✅'))};
   $('#rs').onclick=()=>{if(confirm(tr('Delete your save and start over?','You sure say make we clear everything?'))){localStorage.removeItem(SAVE);const lang=S.lang;S={lang};if(IN)leaveInterior(true);closePhone();creator()}}}}
 // ---------- Character creator ----------
 
@@ -404,36 +395,47 @@ function creator(){$('#title').classList.add('hide');$('#creator').classList.rem
  <p>${tr('Outfit colour','Cloth colour')}</p><div class="row" id="oc">${OUTS.map(c=>`<button class="sw ${c===ck.out?'on':''}" style="background:${c}" data-v="${c}"></button>`).join('')}</div>
  <p>${tr('Hair / head','Hair / head')}</p><div class="row" id="hr">${HAIRS.map((h,i)=>`<button class="opt ${i===ck.hair?'on':''}" data-v="${i}">${L(h)}</button>`).join('')}</div>
  <p>${tr('Build','Body')}</p><div class="row" id="bdy">${[['Slim','Slim'],['Broad','Broad']].map((h,i)=>`<button class="opt ${i===ck.body?'on':''}" data-v="${i}">${L(h)}</button>`).join('')}</div>
- <p>${tr('Background','Background')}</p><div class="row" id="bgc"><button class="opt ${cbg==='nepo'?'on':''}" data-v="nepo">👑 Nepo Baby<br><small>₦500,000</small></button><button class="opt ${cbg==='lapo'?'on':''}" data-v="lapo">📝 Lapo Loan<br><small>₦50,000 + ₦100k ${tr('debt','debt')}</small></button></div>
+ <p>${tr('Background','Background')}</p><div class="row" id="bgc">${STORYMODE?`<button class="opt ${cbg==='nepo'?'on':''}" data-v="nepo">🙏🏾 ${tr('Easy','Easy')}<br><small>₦50,000 + ${tr("Mum's prayers",'Mama prayers')}</small></button><button class="opt ${cbg==='lapo'?'on':''}" data-v="lapo">📝 ${tr('Hard','Hard')}<br><small>₦50,000 + ₦100k Lapo ${tr('debt','debt')}</small></button>`:`<button class="opt ${cbg==='nepo'?'on':''}" data-v="nepo">👑 Nepo Baby<br><small>₦500,000</small></button><button class="opt ${cbg==='lapo'?'on':''}" data-v="lapo">📝 Lapo Loan<br><small>₦50,000 + ₦100k ${tr('debt','debt')}</small></button>`}</div>
  <div class="row"><button class="opt" id="clang">🌐 ${S&&S.lang==='pg'?'English':'Pidgin'}</button></div></div><div class="acts"><button id="go">🚶 ${tr('Enter Lagos','Enter Lagos')}</button></div>`;
  const pv=$('#pv').getContext('2d');const dp=()=>{pv.clearRect(0,0,240,150);pv.fillStyle='#e8d29a';pv.fillRect(0,0,240,150);drawAvatar(pv,120,135,ck,0,0,2.2)};dp();
  $('#nm').oninput=e=>ck.name=e.target.value;
  [['sk','skin'],['oc','out'],['hr','hair'],['bdy','body']].forEach(([id,k])=>$('#'+id).querySelectorAll('button').forEach(b=>b.onclick=()=>{ck[k]=k==='hair'||k==='body'?+b.dataset.v:b.dataset.v;$('#'+id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));dp()}));
  $('#bgc').querySelectorAll('button').forEach(b=>b.onclick=()=>{cbg=b.dataset.v;$('#bgc').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
  $('#clang').onclick=()=>{S=S||{};S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();creator()};
- $('#go').onclick=()=>{const name=(ck.name||'').replace(/[<>&"']/g,'').trim().slice(0,14)||'Tunde';S=fresh({...ck,name},cbg);fix();save();start();toast(cbg==='nepo'?tr('Daddy\'s money landed. Don\'t waste it!','Papa money don land. No waste am!'):tr('Lapo loan landed. Repay at the bank in VI!','Lapo loan don land. Pay back for bank for VI!'))}}
-function start(){$('#creator').classList.add('hide');$('#title').classList.add('hide');R.setLook(S.look);DEAD=null;$('#hud').classList.remove('hide');$('#phoneBtn').classList.remove('hide');lastDist=-1;hud();if(S.tut<TIPS.length)nextTip(1200)}
+ $('#go').onclick=()=>{const name=(ck.name||'').replace(/[<>&"']/g,'').trim().slice(0,14)||'Tunde';S=fresh({...ck,name},cbg);if(STORYMODE){S.story=STORY.fresh();S.money=50000;S.debt=cbg==='lapo'?100000:0;S.respect=2;if(cbg==='nepo')S.peace=85;const d=BY.park0.door;S.p.x=d.x;S.p.y=d.y+20;S.tut=0;fix();save();start(true);STORY.intro(()=>{hud();nextTip(800)});return}fix();save();start();toast(cbg==='nepo'?tr('Daddy\'s money landed. Don\'t waste it!','Papa money don land. No waste am!'):tr('Lapo loan landed. Repay at the bank in VI!','Lapo loan don land. Pay back for bank for VI!'))}}
+function start(noTip){$('#creator').classList.add('hide');$('#title').classList.add('hide');R.setLook(S.look);DEAD=null;$('#hud').classList.remove('hide');$('#phoneBtn').classList.remove('hide');lastDist=-1;hud();if(S.tut<TIPS.length&&!noTip)nextTip(1200);if(S.story&&S.story.on&&!S.story.intro&&!noTip)STORY.intro(()=>hud())}
 
 // ---------- Title / loading / boot ----------
 function showTitle(){const has=load();const t=$('#title');t.classList.remove('hide');
  t.innerHTML=`<div class="tcard"><div class="logo">SAPA<br>SURVIVAL<span>3D LAGOS LIFE</span></div><p>${tr('Hustle in Yaba, VI & Lekki. Pay rent. Survive NEPA. Dodge danfo.','Hustle for Yaba, VI & Lekki. Pay rent. Survive NEPA. Dodge danfo.')}</p>
- ${has?`<button id="tCont">▶ ${tr('Continue','Continue')} — ${S.look.name}, ${tr('Day','Day')} ${day()}</button>`:''}<button id="tNew" class="${has?'alt':''}">🆕 ${tr('New life','New life')}</button>
+ ${has?`<button id="tCont">▶ ${tr('Continue','Continue')} — ${S.look.name}, ${tr('Day','Day')} ${day()}</button>`:''}<button id="tStory" class="${has?'alt':''}">📖 ${tr('New Story','New Story')}<small>${tr('From Face-Me-I-Face-You to Lekki','From Face-Me-I-Face-You to Lekki')}</small></button><button id="tNew" class="alt">🌍 ${tr('New Free Roam','New Free Roam')}</button>
  <div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?'⚡ Low':q==='med'?'Medium':'✨ High'}</button>`).join('')}</div>
  <div class="row"><button class="opt" id="tSnd">${SET.snd?'🔊':'🔇'} ${tr('Sound','Sound')}</button><button class="opt" id="tLng">🌐 ${tr('Pidgin','English')}</button></div><p class="sm">${tr('Single-player · saves on this device · no login','Na only you · e save for this phone · no login')}</p></div>`;
  if(has)$('#tCont').onclick=()=>{AU.init();start()};
- $('#tNew').onclick=()=>{AU.init();if(has&&!confirm(tr('Start a new life? Your current save will be replaced when you enter Lagos.','Start new life? Your old save go clear when you enter Lagos.')))return;const lang=(S&&S.lang)||SET.lang;S={lang};creator()};
+ const nw_=story=>{AU.init();if(has&&!confirm(tr('Start a new life? Your current save will be replaced when you enter Lagos.','Start new life? Your old save go clear when you enter Lagos.')))return;const lang=(S&&S.lang)||SET.lang;S={lang};STORYMODE=story;creator()};$('#tStory').onclick=()=>nw_(true);$('#tNew').onclick=()=>nw_(false);
  t.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);showTitle()});
- $('#tSnd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.on(SET.snd);showTitle()};$('#tLng').onclick=()=>{SET.lang=SET.lang==='pg'?'en':'pg';if(S)S.lang=SET.lang;saveSet();showTitle()}}
+ $('#tSnd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();showTitle()};$('#tLng').onclick=()=>{SET.lang=SET.lang==='pg'?'en':'pg';if(S)S.lang=SET.lang;saveSet();showTitle()}}
 const prog=p=>{$('#lbar').style.width=p+'%';$('#lpct').textContent=Math.round(p)+'%';return new Promise(r=>setTimeout(r,16))};
 let last=performance.now(),hudT=0;
 function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;tm+=dt;
  try{worldTick(dt);const playing=S&&S.look&&!vis('#title');if(playing)update(dt);
   const title=!playing;const pp=IN?{x:IN.p.x,z:IN.p.z}:(S&&S.p&&S.look?{x:S.p.x*K,z:S.p.y*K}:{x:BY.tech.door.x*K,z:(RY+50)*K});
   let mk=null;if(playing&&!DEAD){if(IN&&nearAct)mk=[nearAct.x,nearAct.z,2.3];else if(near)mk=[near.door.x*K,(near.door.y+4)*K,2.4]}
-  R.frame(dt,{tm,p:{...pp,ry:PR.ry,ph:PR.ph,moving:PR.moving},h:S&&S.look?hour():16.8,nf:S&&S.look?nightF():0,bo:S&&S.look?S.bo:0,dead:DEAD,marker:mk,title:title&&!vis('#creator')||(title&&!(S&&S.look))});
-  bubTick(dt);AU.tick();if(playing){hudT+=dt;if(hudT>.25){hudT=0;hud()}}
+  R.frame(dt,{tm,p:{...pp,ry:PR.ry,ph:PR.ph,moving:PR.moving},h:S&&S.look?hour():16.8,nf:S&&S.look?nightF():0,bo:S&&S.look?S.bo:0,dead:DEAD,marker:mk,title:title&&!vis('#creator')||(title&&!(S&&S.look)),cine:STORY.cine,wp:(playing&&!IN&&STORY.on&&STORY.target()&&BY[STORY.target()])?[BY[STORY.target()].door.x*K,BY[STORY.target()].door.y*K]:null});
+  audioFrame(playing);
+  bubTick(dt);AU.tick();if(playing){STORY.tick(dt);hudT+=dt;if(hudT>.25){hudT=0;hud()}}
   fpsN++;}catch(e){console.error(e)}requestAnimationFrame(loop)}
 let fpsN=0;
+function audioFrame(playing){if(!AU.ctx)return;const ci=R.camInfo();AU.listen(ci.x,ci.y,ci.z,ci.fx,ci.fz);
+ let tk='city',club=0,dist='title';
+ if(!playing)tk='title';else{dist=IN?'in':DIST[distAt(S.p.x)].id;
+  if(DEAD||STORY.tense)tk='tense';else if(IN){tk=IN.b.kind==='club'?'amapiano':['home','worship'].includes(IN.b.kind)?'calm':'city'}else{if(S.p.x>3850&&S.p.y>850)tk='calm';const h=hour(),cd=BY.club.door,dd=Math.hypot(S.p.x-cd.x,S.p.y-cd.y);if((h>=21||h<4)&&dd<700)club=1-dd/700}
+  if(!IN){const ok=BUS.filter(v=>v.ok).map(v=>{const [x,y]=busPos(v);return{x,y,d:Math.hypot(x-S.p.x,y-S.p.y)}}).sort((a,b)=>a.d-b.d);for(let i=0;i<2;i++){const o=ok[i];AU.setLoop('ok'+i,o&&o.d<800,o?[o.x*K,1,o.y*K]:[0,0,0],'okada')}
+   GEN.forEach((g,i)=>AU.setLoop('gen'+i,!!S.bo&&Math.hypot(g.x-S.p.x,g.y-S.p.y)<900,[g.x*K,1,g.y*K],'gen'))}else{['ok0','ok1','gen0','gen1','gen2'].forEach(k=>AU.setLoop(k,false));AU.setLoop('genH',genOn()&&IN.b.kind==='home',[IN.sp.w/2-1,1,IN.sp.d/2-1],'gen')}}
+ AU.setTrack(tk);AU.setClub(club);AU.setDistrict(dist)}
+let STORYMODE=false;
+const STORY=makeStory({get S(){return S},tr,N,toast,pay,earn,stat,adv,save,fix,hud,BY,K,AU,HOMES,day,hour,closeModal,free:()=>S&&S.look&&!vis('#modal')&&!vis('#phone')&&!DEAD&&!fading&&!STORY.dlgOpen()&&!vis('#title')&&!vis('#creator'),inside:()=>!!IN,
+ fx:f=>{if(f.m<0)pay(Math.min(S.money,-f.m));if(f.m>0)earn(f.m);stat('energy',f.e);stat('peace',f.p);stat('respect',f.r)}});
 async function boot(){try{await prog(20);await R.init(cv,SET.q);await prog(45);await R.build({B,WW,WH,SEA,RY,RH,PALMS,LAMPS,NPC,BUS,busPos,drawStatic,GEN},prog);await prog(100);
  setTimeout(()=>{$('#load').classList.add('hide');showTitle()},200);requestAnimationFrame(loop)}catch(e){console.error(e);$('#lmsg').textContent='Could not start 3D: '+e.message+'. Try another browser or enable WebGL.'}}
 addEventListener('visibilitychange',()=>document.hidden&&S&&S.look&&save());
@@ -444,5 +446,5 @@ window.G={get S(){return S},adv,blackout,streetEvent,interact,openPhone,R,
  enter:id=>{if(IN)leaveInterior(true);const d=BY[id].door;S.p.x=d.x;S.p.y=d.y+10;near=BY[id];interact()},
  goAct:sub=>{if(!IN)return false;const a=IN.acts.find(a=>a.act.l.includes(sub));if(!a)return false;const dx=-a.x,dz=IN.sp.d/2-1.2-a.z,m=Math.hypot(dx,dz)||1,k=Math.min(a.r*.55,m);IN.p.x=a.x+dx/m*k;IN.p.z=a.z+dz/m*k;return true},dbg:()=>({uiFree:uiFree(),fading,modal:vis('#modal'),phone:vis('#phone'),death:vis('#death'),IN:IN&&IN.b.id,p:IN&&IN.p,na:nearAct&&nearAct.act.l}),
  danfo:()=>{const v=BUS.find(v=>v.h&&!v.ok&&v.lane===0);S.p.x=600;S.p.y=RY+RH*.27;v.x=S.p.x-Math.sign(v.base||v.sp)*260;v.cur=Math.abs(v.base||v.sp);return true},
- get fps(){return fpsN},info:()=>R.info()};
+ get fps(){return fpsN},STORY,AU,storyFlag:(k,v=1)=>{S.story.F[k]=v;STORY.check()},setCh:n=>{S.story.ch=n;S.story.s0=S.shifts;STORY.check()},ending:k=>STORY.ending(k),info:()=>R.info()};
 boot();

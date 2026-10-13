@@ -70,3 +70,8 @@ Root `index.html` + `world.js` + `world.css`: 2D top-down canvas life-sim across
 - `world.js`: game logic (ES module). Save key `sapa_world_v3`; v2 saves (`sapa_world_v2`) are migrated automatically.
 - New: vehicle collisions (death → General Hospital respawn with bill, death counter), zebra crossings (drivers stop), honk + brake, walkable interiors, title/loading screens, WebAudio SFX, speech bubbles, tutorial, minimap, graphics quality setting.
 - Test: `node /workspace/t/v3.js [url]`.
+
+## v4 — Story + music
+- `story.js`: story mode "From Face-Me-I-Face-You to Lekki" (intro cutscene, 5 chapters, quest tracker/waypoint, dialogue trees, Uncle calls, 4 endings, credits + share card).
+- `audio.js`: procedural WebAudio music (city afrobeats 105, amapiano 112, calm highlife 96, tense 80, title 100), crossfades, district ambience, positional SFX, volume buses.
+- Test: `node /workspace/t/v4.js [url]` (story) and `v3.js` (regression).

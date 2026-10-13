@@ -4,7 +4,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 export const K=0.05; // 2D world units -> metres
 const QS={low:{pr:1,sh:0,npc:12,ts:.45,aa:false},med:{pr:1.5,sh:1024,npc:22,ts:.6,aa:true},high:{pr:2,sh:2048,npc:34,ts:.7,aa:true}};
 let rd,scene,camera,hemi,dirL,pl,sky,sunM,moonM,stars,waterMat,D,Q='med',iscene=null,iInfo=null,player=null,marker,lampBulbs,lampGlow,genGlow,npcAv=[],busM=[];
-const bmats=[];const cam={yaw:0,pitch:.5,dist:14};
+const bmats=[],solids=[],ray=new THREE.Raycaster();let wpM,cdist=11;const cam={yaw:0,pitch:.5,dist:14};
 const MC={};const lam=c=>MC[c]||(MC[c]=new THREE.MeshLambertMaterial({color:c}));
 const BMC={};const basic=c=>BMC[c]||(BMC[c]=new THREE.MeshBasicMaterial({color:c}));
 const GC={};const boxG=(w,h,d)=>{const k=w+'_'+h+'_'+d;return GC[k]||(GC[k]=new THREE.BoxGeometry(w,h,d))};
@@ -60,6 +60,7 @@ export const R={cam,get q(){return Q},
   this.props();this.vehicles();this.npcs();await prog(95);
   player=new THREE.Group();scene.add(player);
   marker=new THREE.Mesh(new THREE.ConeGeometry(.35,.7,4),new THREE.MeshBasicMaterial({color:'#ffd400'}));marker.rotation.x=Math.PI;scene.add(marker);
+  wpM=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,40,10,1,true),new THREE.MeshBasicMaterial({color:'#ff1744',transparent:true,opacity:.28,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}));wpM.position.y=20;wpM.visible=false;scene.add(wpM);
  },
  building(b){const x=b.x*K,z=b.y*K,w=b.w*K,d=b.h*K,h=3+b.H*.085,G=new THREE.Group();G.position.set(x+w/2,0,z+d/2);scene.add(G);
   const glass=['bank','tech','studio','hospital','club'].includes(b.kind)||b.id==='flat',winC=b.kind==='club'?'#7b1fa2':glass?'#4fc3f7':'#5d4037';
@@ -75,7 +76,7 @@ export const R={cam,get q(){return Q},
    const m=new THREE.MeshLambertMaterial({map:t,emissiveMap:em,emissive:'#ffffff',emissiveIntensity:0});bmats.push({m,b});return m};
   const roofM=lam(b.roof),fr=face(w,true),sd=face(d,false),top=lam(b.kind==='market'?'#8d6e63':'#9e9e9e');
   let mh=h;if(b.kind==='park'){mh=3.2}if(b.kind==='beach'){this.gate(G,w,d,b);return}
-  const body=new THREE.Mesh(boxG(w,mh,d),[sd,sd,top,top,fr,sd]);body.position.y=mh/2;body.castShadow=body.receiveShadow=true;G.add(body);
+  const body=new THREE.Mesh(boxG(w,mh,d),[sd,sd,top,top,fr,sd]);body.position.y=mh/2;body.castShadow=body.receiveShadow=true;G.add(body);solids.push(body);
   // sign
   const lab=b.sign||b.lab[0].split(' (')[0],sw=Math.min(w*.9,Math.max(4,lab.length*.42));
   const st=ctex(512,96,(c)=>{c.fillStyle=b.kind==='club'?'#120024':'#111';c.fillRect(0,0,512,96);c.strokeStyle=b.kind==='club'?'#e040fb':'#ffd400';c.lineWidth=8;c.strokeRect(4,4,504,88);c.fillStyle=b.kind==='club'?'#e040fb':b.kind==='hospital'?'#ff5252':'#ffd400';c.font='900 52px system-ui,sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(lab,256,50,490)});
@@ -160,7 +161,9 @@ export const R={cam,get q(){return Q},
   let yaw=cam.yaw,pitch=cam.pitch,dist=cam.dist;if(st.title){yaw=tm*.06;pitch=.35;dist=26;tgt.set(P.x,4,P.z)}
   if(iscene){const s=iInfo.sp;dist=Math.min(dist,Math.max(s.w,s.d)*.75);pitch=Math.max(pitch,.55)}
   camera.fov=camera.aspect<.8?68:55;camera.updateProjectionMatrix();marker.scale.setScalar(iscene?.6:1);
-  camera.position.set(tgt.x+Math.sin(yaw)*Math.cos(pitch)*dist,tgt.y+Math.sin(pitch)*dist,tgt.z+Math.cos(yaw)*Math.cos(pitch)*dist);camera.lookAt(tgt);
+  if(!iscene&&!st.title){const dir=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));ray.set(tgt,dir);ray.far=dist;const h=ray.intersectObjects(solids,false)[0];const want=h?Math.max(2.2,h.distance-.5):dist;cdist+=(want-cdist)*Math.min(1,want<cdist?.5:.08);dist=Math.min(dist,cdist)}
+  camera.position.set(tgt.x+Math.sin(yaw)*Math.cos(pitch)*dist,tgt.y+Math.sin(pitch)*dist,tgt.z+Math.cos(yaw)*Math.cos(pitch)*dist);camera.lookAt(tgt);if(st.cine){camera.position.fromArray(st.cine.p);camera.lookAt(st.cine.l[0],st.cine.l[1],st.cine.l[2])}
+  if(wpM){if(st.wp&&!iscene){wpM.visible=true;wpM.position.x=st.wp[0];wpM.position.z=st.wp[1];wpM.material.opacity=.2+Math.sin(tm*3)*.08}else wpM.visible=false}
   {const host=iscene||scene;if(marker.parent!==host)host.add(marker);if(st.marker){marker.visible=true;marker.position.set(st.marker[0],(st.marker[2]||2.9)+Math.sin(tm*4)*.2,st.marker[1]);marker.rotation.y=tm*2}else marker.visible=false}
   if(iscene){for(const f of iInfo.anim)f(tm,dt);for(const o of iInfo.npcs){o.ph+=dt*(o.n.dance?9:2);animate(o.a,o.ph,0,tm);if(o.n.dance){o.a.position.y=Math.abs(Math.sin(o.ph))*.25;o.a.userData.arms.forEach((a,i)=>a.rotation.x=-2.4+Math.sin(o.ph+i)*.5);o.a.rotation.y+=dt*.6}}
    rd.render(iscene,camera);return}
@@ -182,7 +185,8 @@ export const R={cam,get q(){return Q},
   D.BUS.forEach((v,i)=>{const [x,y]=D.busPos(v),m=busM[i];m.position.set(x*K,0,y*K);m.rotation.y=v.h?(v.sp>0?0:Math.PI):(v.sp>0?-Math.PI/2:Math.PI/2)});
   rd.render(scene,camera)},
  interiorMarker(){},
- info(){return rd.info.render}
+ info(){return rd.info.render},
+ camInfo(){const d=new THREE.Vector3();camera.getWorldDirection(d);const f=Math.hypot(d.x,d.z)||1;return{x:camera.position.x,y:camera.position.y,z:camera.position.z,fx:d.x/f,fz:d.z/f}}
 };
 function floorTex(c,pat,w,d){const t=ctex(128,128,g=>{g.fillStyle=c;g.fillRect(0,0,128,128);if(pat==='tile'){g.fillStyle='rgba(0,0,0,.12)';g.fillRect(0,0,64,64);g.fillRect(64,64,64,64);g.fillStyle='rgba(0,0,0,.25)';g.fillRect(0,0,128,2);g.fillRect(0,0,2,128)}else if(pat==='wood'){g.fillStyle='rgba(0,0,0,.15)';for(let i=0;i<128;i+=16)g.fillRect(0,i,128,2)}else{g.fillStyle='rgba(0,0,0,.1)';for(let i=0;i<300;i++)g.fillRect(Math.random()*128,Math.random()*128,2,2)}},1);t.repeat.set(w/2,d/2);return t}
 // ---------- avatars ----------
