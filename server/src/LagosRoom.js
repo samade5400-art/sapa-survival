@@ -1,7 +1,7 @@
 import {Room} from 'colyseus';import {Schema,MapSchema,defineTypes} from '@colyseus/schema';
 import fs from 'node:fs';import path from 'node:path';import {check,checkName,QUICK,EMOTES} from './filter.js';
-export class Player extends Schema{constructor(){super();this.name='';this.skin='#7a4b2e';this.out='#0b7a3e';this.hair=0;this.body=0;this.district='yaba';this.x=0;this.y=0;this.ry=0;this.anim='idle';this.ins='';}}
-defineTypes(Player,{name:'string',skin:'string',out:'string',hair:'uint8',body:'uint8',district:'string',x:'float32',y:'float32',ry:'float32',anim:'string',ins:'string'});
+export class Player extends Schema{constructor(){super();this.name='';this.skin='#7a4b2e';this.out='#0b7a3e';this.hair=0;this.body=0;this.district='yaba';this.x=0;this.y=0;this.ry=0;this.anim='idle';this.ins='';this.model='';this.lv=0;}}
+defineTypes(Player,{name:'string',skin:'string',out:'string',hair:'uint8',body:'uint8',district:'string',x:'float32',y:'float32',ry:'float32',anim:'string',ins:'string',model:'string',lv:'uint16'});
 export class LagosState extends Schema{constructor(){super();this.players=new MapSchema();}}
 defineTypes(LagosState,{players:{map:Player}});
 const env=(k,d)=>process.env[k]!=null?+process.env[k]:d;
@@ -9,6 +9,8 @@ export const CFG={MAX:env('MAX_PLAYERS',50),TRUST_SECS:env('TRUST_SECS',120),DIS
 let WORLD={WW:18000,WH:14000,areas:[]};try{WORLD=JSON.parse(fs.readFileSync(new URL('../world.json',import.meta.url)))}catch(e){console.warn('world.json missing')}
 export const DIST=(x,y=0)=>{for(const a of WORLD.areas){const r=a.r;if(x>=r[0]&&x<r[2]&&y>=r[1]&&y<r[3])return a.id}return 'lagoon'};
 const HEX=/^#[0-9a-f]{6}$/i;
+export const MODELS=['casual','hoodie','business','woman1','woman2'];
+export function applyLook(p,lk){lk=lk&&typeof lk==='object'?lk:{};p.skin=HEX.test(lk.skin)?lk.skin:'#7a4b2e';p.out=HEX.test(lk.out)?lk.out:'#0b7a3e';p.hair=Math.max(0,Math.min(4,lk.hair|0));p.body=lk.body?1:0;p.model=MODELS.includes(lk.model)?lk.model:'';p.lv=(p.lv+1)&0xffff}
 const CAREER={tech:{b:'tech',pay:8000},bank:{b:'bank',pay:10000},trade:{b:'market',pay:6000},fix:{b:'cvillage',pay:7000},ent:{b:'studio',pay:7000}};
 const MENU={'buka:0':1500,'buka:1':3000,'buka:2':50,'suya:0':2000,'suya:1':3500,'suya:2':500};
 let ANCH={};try{ANCH=JSON.parse(fs.readFileSync(new URL('../anchors.json',import.meta.url)))}catch(e){console.warn('anchors.json missing: teleports limited to spawn')}
@@ -23,11 +25,12 @@ export function makeRoom(ledger,dataDir){
   on('job',(c,M,m)=>this.job(c,M,m));on('buy',(c,M,m)=>this.buy(c,M,m));on('spend',(c,M,m)=>this.spend(c,M,m));
   on('report',(c,M,m)=>{const t=this.meta.get(m.target);if(Date.now()-M.lastRep<10000)return c.send('sys',{k:'report_wait'});M.lastRep=Date.now();
    log('reports.jsonl',{room:this.roomId,reporter:{id:c.sessionId,name:M.name,dev:M.dev},target:{id:m.target,name:t?t.name:'(left)',dev:t?t.dev:null},reason:String(m.reason||'').slice(0,80),last:t?t.hist.slice(-50):[]});c.send('sys',{k:'reported'})});
+  on('look',(c,M,m)=>{const now=Date.now();if(now-(M.lastLook||0)<1000)return;M.lastLook=now;const p=this.state.players.get(c.sessionId);if(p)applyLook(p,m.look||m)});
   on('ping',(c)=>c.send('pong',{t:Date.now()}));}
  budget(c,M){const now=Date.now();if(now-M.win>1000){M.win=now;M.cnt=0}if(++M.cnt>40){if(++M.strikes>5){log('moderation.jsonl',{kick:'flood',dev:M.dev,name:M.name});c.leave(4001)}return false}return true}
  onAuth(c,o){const n=checkName(o&&o.name);if(!n.ok)throw new Error('bad_name:'+n.reason);if(!o.device||!/^[a-f0-9]{16,64}$/.test(o.device))throw new Error('bad_device');
   for(const [,M] of this.meta)if(M.dev===o.device)throw new Error('already_online');return true}
- onJoin(c,o){const n=checkName(o.name).name,lk=o.look||{},p=new Player();p.name=n;p.skin=HEX.test(lk.skin)?lk.skin:'#7a4b2e';p.out=HEX.test(lk.out)?lk.out:'#0b7a3e';p.hair=Math.max(0,Math.min(4,lk.hair|0));p.body=lk.body?1:0;
+ onJoin(c,o){const n=checkName(o.name).name,lk=o.look||{},p=new Player();p.name=n;applyLook(p,lk);
   p.x=SPAWN.x+(Math.random()-.5)*16;p.y=SPAWN.y+(Math.random()-.5)*16;p.district=DIST(p.x,p.y);this.state.players.set(c.sessionId,p);
   const dev=o.device;if(!ledger.has(dev))ledger.post(dev,CFG.START,'grant','starter_wallet',{name:n});
   this.meta.set(c.sessionId,{dev,name:n,joined:Date.now(),lastMove:Date.now(),win:0,cnt:0,strikes:0,chatT:[],lastDist:0,lastEm:0,lastRep:0,lastJob:0,lastTp:0,hist:[]});

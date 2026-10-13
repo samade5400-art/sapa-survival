@@ -1,5 +1,5 @@
 // Naija Republic Phase 0 — online layer for Sapa Survival (Colyseus client). Single-player code paths are untouched when NET.on is false.
-import {R,K} from './r3d.js?v=9';
+import {R,K,MODELS} from './r3d.js?v=10';
 const $=s=>document.querySelector(s);
 export const DEFAULT_SERVER='wss://naija-republic-server.onrender.com';
 const CLIENT_URL='https://cdn.jsdelivr.net/npm/colyseus.js@0.16.22/+esm';
@@ -47,6 +47,7 @@ export function makeNet(ctx){
   const lk=Object.assign({skin:SK[2],out:OU[0],hair:0,body:0},look||{},saved.look||{});
   const draw=()=>{cr.innerHTML=`<div class="card"><h2>🌍 Play Online <small style="font-size:12px;color:#0b7a3e">Naija Republic beta</small></h2><p>Share one Lagos with up to 50 players. Chat is filtered: no numbers, links or scams. Be nice.</p>
    <label class="sl">Nickname<input id="nNm" maxlength="14" value="${esc(saved.name||'')}" placeholder="e.g. Tunde"></label>
+   <p><b>Style</b></p><div class="row" id="mdl">${MODELS.map(([v,n])=>`<button class="opt ${(lk.model||'')===v?'on':''}" data-md="${v}">${n}</button>`).join('')}</div>
    <p><b>Skin</b></p><div class="row sw">${SK.map(c=>`<button class="opt ${lk.skin===c?'on':''}" data-sk="${c}" style="background:${c}">&nbsp;</button>`).join('')}</div>
    <p><b>Outfit</b></p><div class="row sw">${OU.map(c=>`<button class="opt ${lk.out===c?'on':''}" data-ou="${c}" style="background:${c}">&nbsp;</button>`).join('')}</div>
    <p><b>Hair</b></p><div class="row">${['Low cut','Afro','Braids','Cap','Wrap'].map((h,i)=>`<button class="opt ${lk.hair===i?'on':''}" data-h="${i}">${h}</button>`).join('')}</div>
@@ -54,7 +55,7 @@ export function makeNet(ctx){
    <details><summary style="font-size:12px">Server</summary><input id="nSv" value="${esc(sv)}" style="width:100%;font-size:12px"></details><p id="nErr" style="color:#c62828;font-weight:800"></p></div>
    <div class="acts"><button id="nGo">🚀 Join Lagos</button><button id="nBack" class="alt">⬅ Back</button></div><p class="sm" style="font-size:11px">Online mode uses a separate server wallet (₦50,000 starter). Your single-player save is not touched. Prototype: progress may be reset.</p>`;
    cr.querySelectorAll('[data-sk]').forEach(b=>b.onclick=()=>{lk.skin=b.dataset.sk;keep();draw()});cr.querySelectorAll('[data-ou]').forEach(b=>b.onclick=()=>{lk.out=b.dataset.ou;keep();draw()});
-   cr.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{lk.hair=+b.dataset.h;keep();draw()});cr.querySelectorAll('[data-bd]').forEach(b=>b.onclick=()=>{lk.body=+b.dataset.bd;keep();draw()});
+   cr.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>{lk.model=b.dataset.md;if(/woman/.test(lk.model)&&lk.hair<2)lk.hair=2;keep();draw()});cr.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{lk.hair=+b.dataset.h;keep();draw()});cr.querySelectorAll('[data-bd]').forEach(b=>b.onclick=()=>{lk.body=+b.dataset.bd;keep();draw()});
    $('#nBack').onclick=()=>{m.classList.add('hide');ctx.back()};
    $('#nGo').onclick=async()=>{keep();const name=$('#nNm').value.replace(/[<>&"']/g,'').trim();if(name.length<2){$('#nErr').textContent='Pick a nickname (2–14 letters)';return}
     const url=$('#nSv').value.trim();ls('nr_server',url);$('#nGo').disabled=true;$('#nErr').textContent='Connecting…';
@@ -62,7 +63,7 @@ export function makeNet(ctx){
   const keep=()=>{const n=$('#nNm');saved.name=n?n.value:saved.name};draw()};
  const errText=e=>{const s=String(e&&e.message||e);if(s.includes('bad_name'))return 'That nickname is not allowed. Try another (letters/numbers only, no contacts).';if(s.includes('already_online'))return 'You are already online in another tab.';if(/full|locked/i.test(s))return 'Lagos is full (50 players). Try again soon.';return '😓 Server no dey answer ('+s.slice(0,80)+'). Play single-player for now, or try again later.'};
  N.connect=async(url,name,look)=>{const mod=await import(CLIENT_URL);client=new mod.Client(url);
-  const opts={name,look,device:deviceId()};room=await Promise.race([client.joinOrCreate('lagos',opts),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),12000))]);wire(room);N.on=true;closedByUser=false;
+  const opts={name,look:{skin:look.skin,out:look.out,hair:look.hair|0,body:look.body?1:0,model:look.model||''},device:deviceId()};room=await Promise.race([client.joinOrCreate('lagos',opts),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),12000))]);wire(room);N.on=true;closedByUser=false;
   await new Promise(r=>{const t=setInterval(()=>{if(hello){clearInterval(t);r()}},50);setTimeout(()=>{clearInterval(t);r()},4000)})};
  function wire(r){me=r.sessionId;
   r.onMessage('hello',m=>{hello=m;joinedAt=Date.now()-0;ctx.setMoney(m.balance);N._spawn={x:m.x,y:m.y};if(ctx.S&&ctx.S.online&&Number.isFinite(m.x)){ctx.S.p.x=m.x;ctx.S.p.y=m.y}sys('✅ You don land for Lagos. '+(m.trustSecs?`New players: quick phrases only for the first ${m.trustSecs>=60?Math.round(m.trustSecs/60)+' min':m.trustSecs+'s'}.`:''));drawQP()});
@@ -78,19 +79,23 @@ export function makeNet(ctx){
   try{const p=ls('nr_profile');room=await client.joinOrCreate('lagos',{name:p.name,look:p.look,device:deviceId()});wire(room);reconnecting=false;sys('✅ Rejoined');return}catch(e){}
   reconnecting=false;N.fail('down')}
  N.fail=why=>{N.on=false;room=null;ui.classList.add('hide');ctx.fallback(why)};
- N.leave=()=>{closedByUser=true;try{room&&room.leave(true)}catch(e){}room=null;N.on=false;remotes.forEach(o=>{R.removeRemote(o.a);o.np.remove()});remotes.clear();bubbles.forEach(b=>b.el.remove());bubbles.length=0;ui.classList.add('hide');log.length=0};
- N.show=()=>{ui.classList.remove('hide');drawLog()};
+ N.leave=()=>{closedByUser=true;try{room&&room.leave(true)}catch(e){}room=null;N.on=false;remotes.forEach(o=>{R.removeRemote(o.a);o.np.remove()});remotes.clear();bubbles.forEach(b=>b.el.remove());bubbles.length=0;ui.classList.add('hide');document.body.classList.remove('online');log.length=0};
+ N.show=()=>{ui.classList.remove('hide');document.body.classList.add('online');drawLog()};
  N.emote=id=>{if(!room)return;room.send('emote',{id});emA={dance:'dance',zanku:'dance',wave:'wave',greet:'kneel',kneel:'kneel',laugh:'wave'}[id]||'wave';emT=3};
+ N.setLook=lk=>{if(room&&lk)room.send('look',{look:{skin:lk.skin,out:lk.out,hair:lk.hair|0,body:lk.body?1:0,model:lk.model||''}})};
  N.localAnim=()=>emT>0?emA:'idle';
  N.job=(career,score)=>room&&room.send('job',{career,score});N.buy=item=>room&&room.send('buy',{item});N.spend=(amount,reason)=>room&&room.send('spend',{amount,reason});
  // ---------- per frame ----------
  N.frame=(dt,tm)=>{if(!N.on||!room||!ctx.S||!ctx.S.p||!ctx.PR||!room.state||!room.state.players)return;const S=ctx.S,IN=ctx.IN,PR=ctx.PR;emT-=dt;
   sendT-=dt;if(sendT<=0){sendT=.1;const st={x:Math.round(S.p.x*10)/10,y:Math.round(S.p.y*10)/10,ry:Math.round(PR.ry*100)/100,anim:PR.moving?'walk':N.localAnim(),ins:IN?IN.b.id:'',v:ctx.VEH?1:0};if(st.x!==last.x||st.y!==last.y||st.ry!==last.ry||st.anim!==last.anim||st.ins!==last.ins){room.send('move',st);last=st}}
   const seen=new Set();room.state.players.forEach((p,id)=>{if(id===me)return;seen.add(id);let o=remotes.get(id);
-   if(!o){o={a:R.addRemote({skin:p.skin,out:p.out,hair:p.hair,body:p.body,name:p.name}),x:p.x,y:p.y,ry:p.ry,ph:0,em:null,emT:0,np:document.createElement('div')};o.np.className='np';o.np.textContent=p.name;$('#netNames').appendChild(o.np);remotes.set(id,o)}
+   const lkOf=q=>({skin:q.skin,out:q.out,hair:q.hair,body:q.body,model:q.model||'',name:q.name});
+   if(!o){o={a:R.addRemote(lkOf(p)),lv:p.lv,x:p.x,y:p.y,px:p.x,py:p.y,spd:0,ry:p.ry,ph:0,em:null,emT:0,np:document.createElement('div')};o.np.className='np';o.np.innerHTML=`<span>${esc(p.name)}</span>`;$('#netNames').appendChild(o.np);remotes.set(id,o)}
+   if(o.lv!==p.lv||o.nm!==p.name){o.lv=p.lv;o.nm=p.name;R.removeRemote(o.a);o.a=R.addRemote(lkOf(p));o.np.innerHTML=`<span>${esc(p.name)}</span>`}
+   {const md=Math.hypot(p.x-o.px,p.y-o.py);o.px=p.x;o.py=p.y;if(dt>0&&md<300)o.spd+=(md/dt-o.spd)*Math.min(1,dt*4)}
    const d=Math.hypot(p.x-o.x,p.y-o.y);if(d>300){o.x=p.x;o.y=p.y}else{const k=Math.min(1,dt*10);o.x+=(p.x-o.x)*k;o.y+=(p.y-o.y)*k}
    let dr=((p.ry-o.ry+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;o.ry+=dr*Math.min(1,dt*12);o.emT-=dt;
-   const moving=d>1.5||p.anim==='walk';if(moving)o.ph+=dt*11;const anim=moving?'walk':(o.emT>0?({dance:'dance',zanku:'dance',greet:'kneel',kneel:'kneel'})[o.em]||'wave':p.anim);
+   const moving=o.spd>8||d>1.5||p.anim==='walk';if(moving)o.ph+=dt*11;const anim=moving?(o.spd>100?'run':'walk'):(o.emT>0?({dance:'dance',zanku:'dance',greet:'kneel',kneel:'kneel'})[o.em]||'wave':p.anim);
    const hidden=!!p.ins||!!IN||block.has(p.name);o.a.visible=!hidden;o.a.position.set(o.x*K,0,o.y*K);o.a.rotation.y=o.ry;R.animRemote(o.a,o.ph,anim,tm);
    const sc=R.screen(o.x*K,2.25,o.y*K),far=Math.hypot(p.x-S.p.x,p.y-S.p.y)>700;o.np.style.display=hidden||!sc.vis||far?'none':'block';o.np.style.transform=`translate(${sc.x}px,${sc.y}px) translate(-50%,-100%)`});
   remotes.forEach((o,id)=>{if(!seen.has(id)){R.removeRemote(o.a);o.np.remove();remotes.delete(id)}});

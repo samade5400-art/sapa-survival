@@ -1,9 +1,9 @@
 // Naija Republic v5 — open-world Lagos life-sim. Three.js via importmap, no build step.
-import {R,K} from './r3d.js?v=9';
-import {makeNet} from './online.js?v=9';
-import {makeAudio} from './audio.js?v=9';
-import {makeStory} from './story.js?v=9';
-import * as CT from './city.js?v=9';
+import {R,K,MODELS} from './r3d.js?v=10';
+import {makeNet} from './online.js?v=10';
+import {makeAudio} from './audio.js?v=10';
+import {makeStory} from './story.js?v=10';
+import * as CT from './city.js?v=10';
 const $=s=>document.querySelector(s);
 const cv=$('#cv');
 const SAVE='sapa_world_v5',MAXM=1e9;
@@ -520,6 +520,7 @@ function creator(){$('#title').classList.add('hide');$('#creator').classList.rem
  cr.innerHTML=`<div class="card"><h2>🇳🇬 Sapa Survival <span style="color:#0b7a3e">3D</span></h2><p>${tr('Create your Lagosian. Hustle, chop, pay rent, survive NEPA.','Create your Lagos person. Hustle, chop, pay rent, survive NEPA.')}</p>
  <canvas id="pv" width="240" height="150" style="width:120px;height:75px;display:block;margin:4px auto"></canvas>
  <input id="nm" maxlength="14" placeholder="${tr('Your name','Your name')}" value="${ck.name}">
+ <p>${tr('Style','Style')}</p><div class="row" id="mdl">${MODELS.map(([v,n])=>`<button class="opt ${(ck.model||'')===v?'on':''}" data-v="${v}">${n}</button>`).join('')}</div>
  <p>${tr('Skin tone','Skin colour')}</p><div class="row" id="sk">${SKINS.map(c=>`<button class="sw ${c===ck.skin?'on':''}" style="background:${c}" data-v="${c}"></button>`).join('')}</div>
  <p>${tr('Outfit colour','Cloth colour')}</p><div class="row" id="oc">${OUTS.map(c=>`<button class="sw ${c===ck.out?'on':''}" style="background:${c}" data-v="${c}"></button>`).join('')}</div>
  <p>${tr('Hair / head','Hair / head')}</p><div class="row" id="hr">${HAIRS.map((h,i)=>`<button class="opt ${i===ck.hair?'on':''}" data-v="${i}">${L(h)}</button>`).join('')}</div>
@@ -528,13 +529,13 @@ function creator(){$('#title').classList.add('hide');$('#creator').classList.rem
  <div class="row"><button class="opt" id="clang">🌐 ${S&&S.lang==='pg'?'English':'Pidgin'}</button></div></div><div class="acts"><button id="go">🚶 ${tr('Enter Lagos','Enter Lagos')}</button></div>`;
  const pv=$('#pv').getContext('2d');const dp=()=>{pv.clearRect(0,0,240,150);pv.fillStyle='#e8d29a';pv.fillRect(0,0,240,150);drawAvatar(pv,120,135,ck,0,0,2.2)};dp();
  $('#nm').oninput=e=>ck.name=e.target.value;
- [['sk','skin'],['oc','out'],['hr','hair'],['bdy','body']].forEach(([id,k])=>$('#'+id).querySelectorAll('button').forEach(b=>b.onclick=()=>{ck[k]=k==='hair'||k==='body'?+b.dataset.v:b.dataset.v;$('#'+id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));dp()}));
+ [['mdl','model'],['sk','skin'],['oc','out'],['hr','hair'],['bdy','body']].forEach(([id,k])=>$('#'+id).querySelectorAll('button').forEach(b=>b.onclick=()=>{ck[k]=k==='hair'||k==='body'?+b.dataset.v:b.dataset.v;$('#'+id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));dp()}));
  $('#bgc').querySelectorAll('button').forEach(b=>b.onclick=()=>{cbg=b.dataset.v;$('#bgc').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
  $('#clang').onclick=()=>{S=S||{};S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();creator()};
  $('#go').onclick=()=>{const name=(ck.name||'').replace(/[<>&"']/g,'').trim().slice(0,14)||'Tunde';S=fresh({...ck,name},cbg);if(STORYMODE){S.story=STORY.fresh();S.money=50000;S.debt=cbg==='lapo'?100000:0;S.respect=2;if(cbg==='nepo')S.peace=85;const d=BY.park0.door;S.p.x=d.x;S.p.y=d.y+20;S.tut=0;fix();save();start(true);STORY.intro(()=>{hud();nextTip(800)});return}fix();save();start();toast(cbg==='nepo'?tr('Daddy\'s money landed. Don\'t waste it!','Papa money don land. No waste am!'):tr('Lapo loan landed. Repay at the bank in VI!','Lapo loan don land. Pay back for bank for VI!'))}}
 function goOnline(){NET.openJoin(S&&S.look,look=>{const lang=SET.lang;const keepP=S&&S.online?null:{...(S&&S.p||{})};const sp=NET._spawn;S=fresh(look,'nepo');S.lang=lang;S.online=true;S.debt=0;S.tut=TIPS.length;S.money=netMoney;if(sp){S.p.x=sp.x;S.p.y=sp.y}fix();start(true);NET.show();toast(tr('🟢 Online! Be nice. Chat is filtered.','🟢 You don enter online! Behave. Chat get filter.'))})}
 let netMoney=50000;
-function start(noTip){$('#creator').classList.add('hide');$('#title').classList.add('hide');R.setLook(S.look);DEAD=null;$('#hud').classList.remove('hide');$('#phoneBtn').classList.remove('hide');lastDist=-1;hud();if(S.tut<TIPS.length&&!noTip)nextTip(1200);if(S.story&&S.story.on&&!S.story.intro&&!noTip)STORY.intro(()=>hud())}
+function start(noTip){$('#creator').classList.add('hide');$('#title').classList.add('hide');R.setLook(S.look);if(NET.on)NET.setLook(S.look);DEAD=null;$('#hud').classList.remove('hide');$('#phoneBtn').classList.remove('hide');lastDist=-1;hud();if(S.tut<TIPS.length&&!noTip)nextTip(1200);if(S.story&&S.story.on&&!S.story.intro&&!noTip)STORY.intro(()=>hud())}
 
 // ---------- Title / loading / boot ----------
 function showTitle(){const has=load();const t=$('#title');t.classList.remove('hide');

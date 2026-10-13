@@ -5,7 +5,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone as skClone} from 'three/addons/utils/SkeletonUtils.js';
 export const K=0.05; // 2D world units -> metres
 const QS={low:{pr:1,sh:0,npc:10,tpx:256,far:150,aa:false,an:2,mix:10},med:{pr:1.5,sh:1024,npc:18,tpx:512,far:220,aa:true,an:4,mix:18},high:{pr:2,sh:2048,npc:26,tpx:768,far:300,aa:true,an:8,mix:30}};
-import {build3D,frame3D} from './city.js?v=9';
+import {build3D,frame3D} from './city.js?v=10';
 let tapM=null,rd,scene,camera,hemi,dirL,pl,sky,sunM,moonM,stars,waterMat,D,Q='med',iscene=null,iInfo=null,player=null,marker,CITY=null,flash=0;
 const bmats=[],solids=[],ray=new THREE.Raycaster();let wpM,cdist=11;const cam={yaw:0,pitch:.5,dist:14};
 const MC={};const lam=c=>MC[c]||(MC[c]=new THREE.MeshLambertMaterial({color:c}));
@@ -216,15 +216,15 @@ function floorTex(c,pat,w,d){const t=ctex(128,128,g=>{g.fillStyle=c;g.fillRect(0
 // ---------- avatars ----------
 // ---------- rigged CC0 characters (Quaternius, see CREDITS.md) ----------
 const CH={list:['casual','hoodie','business','woman1','woman2'],base:{},ready:false,mats:{}},MIX={n:0,cap:18};
-export async function loadChars(){const L=new GLTFLoader();await Promise.all(CH.list.map(n=>L.loadAsync('assets/chars/'+n+'.glb?v=9').then(g=>prepChar(n,g)).catch(e=>console.warn('char load',n,e&&e.message))));CH.ready=Object.keys(CH.base).length>0;return CH.ready}
+export async function loadChars(){const L=new GLTFLoader();await Promise.all(CH.list.map(n=>L.loadAsync('assets/chars/'+n+'.glb?v=10').then(g=>prepChar(n,g)).catch(e=>console.warn('char load',n,e&&e.message))));CH.ready=Object.keys(CH.base).length>0;return CH.ready}
 function prepChar(n,g){const s=g.scene;s.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(s,true),h=bb.max.y-bb.min.y||1;s.scale.multiplyScalar(1.8/h);s.position.y=-bb.min.y*1.8/h;
  const cnt={},clips={};s.traverse(o=>{if(o.isMesh){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms){m.metalness=0;m.roughness=Math.max(.55,m.roughness??.8);const k=m.name||'';if(!/skin|hair|eye|brow|moust|black|shoe/i.test(k))cnt[k]=(cnt[k]||0)+o.geometry.attributes.position.count}}});
- const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];for(const c of g.animations)clips[c.name.split('|').pop()]=c;CH.base[n]={id:n,scene:s,clips,top:top&&top[0],fem:/woman/.test(n)}}
+ const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];for(const c of g.animations)clips[c.name.split('|').pop()]=c;const TOP={casual:'LightBrown',hoodie:'Purple',business:'Suit',woman1:'Orange',woman2:'LimeGreen'},HAIR={woman2:'Red'};CH.base[n]={id:n,scene:s,clips,top:TOP[n]||(top&&top[0]),hair:HAIR[n],fem:/woman/.test(n)}}
 const hsh=s=>{let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h};
-function pickChar(lk){const h=hsh(JSON.stringify(lk)),fem=lk.hair===2||lk.hair===4||lk.fem,pool=CH.list.filter(n=>CH.base[n]&&CH.base[n].fem===!!fem);const P=pool.length?pool:CH.list.filter(n=>CH.base[n]);
+function pickChar(lk){if(lk.model&&CH.base[lk.model])return lk.model;const h=hsh(JSON.stringify(lk)),fem=lk.hair===2||lk.hair===4||lk.fem,pool=CH.list.filter(n=>CH.base[n]&&CH.base[n].fem===!!fem);const P=pool.length?pool:CH.list.filter(n=>CH.base[n]);
  if(!fem&&CH.base.business&&/^#(212121|0d47a1|263238|37474f|1a237e)/i.test(lk.out||''))return 'business';return P[h%P.length]}
 function tintMat(m,lk,B){const k=m.name||'',key=B.id+'|'+k+'|'+lk.skin+'|'+lk.out;if(CH.mats[key])return CH.mats[key];let c=null;
- if(/skin_darker/i.test(k))c=new THREE.Color(lk.skin||'#5a3825').multiplyScalar(.75);else if(/skin/i.test(k))c=new THREE.Color(lk.skin||'#5a3825');else if(/hair|brow|moust/i.test(k))c=new THREE.Color('#141010');else if(k===B.top&&lk.out)c=new THREE.Color(lk.out);
+ if(/skin_darker/i.test(k))c=new THREE.Color(lk.skin||'#5a3825').multiplyScalar(.75);else if(/skin/i.test(k))c=new THREE.Color(lk.skin||'#5a3825');else if(/hair|brow|moust/i.test(k)||k===B.hair)c=new THREE.Color('#141010');else if(k===B.top&&lk.out)c=new THREE.Color(lk.out);
  if(!c)return m;const n=m.clone();n.color.copy(c);return CH.mats[key]=n}
 function glbAvatar(lk,npc){const B=CH.base[pickChar(lk)],m=skClone(B.scene),g=new THREE.Group();
  m.traverse(o=>{if(o.isMesh){o.castShadow=!npc;o.receiveShadow=false;o.material=Array.isArray(o.material)?o.material.map(x=>tintMat(x,lk,B)):tintMat(o.material,lk,B)}});g.add(m);
@@ -233,6 +233,7 @@ function glbAvatar(lk,npc){const B=CH.base[pickChar(lk)],m=skClone(B.scene),g=ne
 function glbAnim(a,want,speed,tm){const G=a.userData.glb;let dt=G.t<0?0:tm-G.t;if(dt<0||dt>.25)dt=.016;
  if(MIX.n>=MIX.cap)return;G.t=tm;MIX.n++;const k=Math.min(1,dt*8);for(const n in G.act){const tg=n===want?1:0;G.w[n]+=(tg-G.w[n])*k;G.act[n].setEffectiveWeight(G.w[n])}
  if(G.act.Walk)G.act.Walk.timeScale=want==='Walk'?Math.max(.6,speed):1;G.mixer.update(dt)}
+export const MODELS=[['casual','Casual'],['hoodie','Hoodie'],['business','Suit'],['woman1','Jeans & top'],['woman2','Ankara dress']];
 export const charInfo=()=>({ready:CH.ready,models:Object.keys(CH.base),mix:MIX.n});
 export function makeAvatar(lk,npc){if(CH.ready)try{return glbAvatar(lk,npc)}catch(e){console.warn('glbAvatar',e)}const g=new THREE.Group(),bw=lk.body?.56:.44,u={legs:[],arms:[]},pant=npc?'#37474f':'#263238',B3=(w,h,d)=>new THREE.BoxGeometry(w,h,d),HC='#1b1b1b';
  for(const s of [-1,1]){const L=new THREE.Mesh(mergeGeometries([part(B3(.17,.8,.2),pant,0,-.4,0),part(B3(.19,.12,.3),'#111',0,-.8,.04)]),VC);L.position.set(s*bw*.24,.86,0);g.add(L);u.legs.push(L);
@@ -249,7 +250,7 @@ export function makeAvatar(lk,npc){if(CH.ready)try{return glbAvatar(lk,npc)}catc
  g.traverse(o=>{if(o.isMesh)o.castShadow=true});g.userData=u;return g}
 function animate(a,ph,mv,tm){if(a.userData.glb){glbAnim(a,mv>1.5?'Run':mv>0?'Walk':'Idle',mv,tm);a.position.y=0;return}const u=a.userData,s=Math.sin(ph)*.7*mv;u.legs[0].rotation.x=s;u.legs[1].rotation.x=-s;u.arms[0].rotation.x=-s*.85;u.arms[1].rotation.x=s*.85;u.arms[0].rotation.z=u.arms[1].rotation.z=0;
  a.position.y=mv?Math.abs(Math.cos(ph))*.05:0;u.body.scale.y=mv?1:1+Math.sin(tm*2.2+ph)*.015}
-export function animX(a,ph,anim,tm){const u=a.userData;if(u.glb){if(anim==='walk')return animate(a,ph,1,tm);glbAnim(a,anim==='wave'||anim==='dance'?'Wave':'Idle',1,tm);a.position.y=anim==='dance'?Math.abs(Math.sin(tm*9))*.15:anim==='kneel'?-.35:0;return}if(anim==='walk'){animate(a,ph,1,tm);return}animate(a,ph,0,tm);
+export function animX(a,ph,anim,tm){const u=a.userData;if(anim==='run')return animate(a,ph,2,tm);if(u.glb){if(anim==='walk')return animate(a,ph,1,tm);glbAnim(a,anim==='wave'||anim==='dance'?'Wave':'Idle',1,tm);a.position.y=anim==='dance'?Math.abs(Math.sin(tm*9))*.15:anim==='kneel'?-.35:0;return}if(anim==='walk'){animate(a,ph,1,tm);return}animate(a,ph,0,tm);
  if(anim==='dance'){a.position.y=Math.abs(Math.sin(tm*9))*.22;u.arms.forEach((r,i)=>{r.rotation.x=-2.5+Math.sin(tm*9+i*3)*.5});u.legs[0].rotation.x=Math.sin(tm*9)*.5;u.legs[1].rotation.x=-Math.sin(tm*9)*.5}
  else if(anim==='wave'){u.arms[1].rotation.z=2.6+Math.sin(tm*10)*.35}
  else if(anim==='kneel'){a.position.y=-.35;u.legs.forEach(l=>l.rotation.x=-1.4);u.arms.forEach(r=>r.rotation.x=-.4)}}
