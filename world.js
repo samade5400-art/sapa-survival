@@ -1,19 +1,20 @@
-'use strict';
-// Sapa Survival v2 — Lagos World. Single-player 2D top-down life-sim. No build step.
+// Sapa Survival v3 — 3D Lagos World. Single-player life-sim. Three.js via importmap, no build step.
+import {R,K} from './r3d.js';
 const $=s=>document.querySelector(s);
-const cv=$('#cv'),ctx=cv.getContext('2d');
-const lc=document.createElement('canvas'),lx=lc.getContext('2d');
-let W=0,H=0,DPR=1,Z=1;
-const SAVE='sapa_world_v2',MAXM=1e9,WW=4600,WH=1400,RY=560,RH=100,SHORE=1150,SEA=1220;
+const cv=$('#cv');
+const SAVE='sapa_world_v3',MAXM=1e9,WW=4600,WH=1400,RY=560,RH=100,SHORE=1150,SEA=1220;
 const DIST=[{id:'yaba',ox:0,n:['Yaba','Yaba']},{id:'vi',ox:1600,n:['Victoria Island','VI']},{id:'lekki',ox:3200,n:['Lekki','Lekki']}];
+const SET=Object.assign({q:innerWidth<760?'med':'high',snd:1,lang:'en'},(()=>{try{return JSON.parse(localStorage.getItem('sapa_settings'))||{}}catch(e){return{}}})());
+const saveSet=()=>{try{localStorage.setItem('sapa_settings',JSON.stringify(SET))}catch(e){}};
 let S=null;
-const tr=(e,p)=>(S&&S.lang==='pg')?p:e;
+const tr=(e,p)=>(((S&&S.lang)||SET.lang)==='pg')?p:e;
 const L=a=>Array.isArray(a)?tr(a[0],a[1]):a;
 const N=n=>'₦'+Math.round(n).toLocaleString('en-US');
 const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
 const okNum=n=>typeof n==='number'&&Number.isFinite(n);
 function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const hash=n=>rng(n*9973+17)();
+const ZEB=[300,1000,1900,2620,3700,4350];
 
 // ---------- World data ----------
 const B=[];
@@ -32,6 +33,7 @@ bd('park1','park',1,2780,250,170,100,'#ffd400','#333',['VI Danfo Park','VI Motor
 bd('flat','home',2,3280,140,280,210,'#eceff1','#455a64',['Lekki Phase 1 Flats','Lekki Phase 1 Flats'],120);
 bd('studio','studio',2,3980,170,260,180,'#ff4081','#212121',['Lekki Vibes Studio','Lekki Vibes Studio'],80);
 bd('park2','park',2,3300,780,170,100,'#ffd400','#333',['Lekki Danfo Park','Lekki Motor Park'],40);
+bd('hospital','hospital',1,2420,770,270,170,'#fafafa','#b71c1c',['General Hospital Lagos','General Hospital'],100);
 bd('beach','beach',2,4040,960,140,70,'#ffe082','#00838f',['Elegushy Beach Gate','Elegushy Beach Gate'],40);
 const BY={};B.forEach(b=>BY[b.id]=b);
 const HOMES=[{n:['Face-me-I-face-you room','Face-me-I-face-you'],rent:10000,fee:0,b:'room',sleep:.7},{n:['Self-contain','Self-contain'],rent:35000,fee:150000,b:'room',sleep:.9,rq:8},{n:['Lekki flat','Lekki flat'],rent:120000,fee:900000,b:'flat',sleep:1,rq:30}];
@@ -46,13 +48,13 @@ const goodPrice=i=>Math.round(GOODS[i][3]*(0.75+0.5*hash(day()*7+i))/50)*50;
 const FARE=[[0,1000,1800],[1000,0,800],[1800,800,0]];
 
 // ---------- State ----------
-function fresh(look,bg){return{v:2,lang:(S&&S.lang)||'en',look,money:bg==='nepo'?500000:50000,debt:bg==='nepo'?0:100000,save:0,energy:90,hunger:80,peace:70,respect:bg==='nepo'?12:2,
+function fresh(look,bg){return{v:3,deaths:0,tut:0,lang:(S&&S.lang)||'en',look,money:bg==='nepo'?500000:50000,debt:bg==='nepo'?0:100000,save:0,energy:90,hunger:80,peace:70,respect:bg==='nepo'?12:2,
  t:7*60,lh:7,p:{x:BY.room.door.x,y:BY.room.door.y+20,dir:0},home:0,homeless:false,rentDue:8,fuel:0,bo:0,boEnd:0,car:{tech:{lv:0,xp:0},bank:{lv:0,xp:0},trade:{lv:0,xp:0},ent:{lv:0,xp:0}},inv:[0,0,0,0],bg,shifts:0,log:[]}}
 const day=()=>S?Math.floor(S.t/1440)+1:1;
 const hour=()=>S?(S.t/60)%24:12;
 function fix(){if(!S)return;['money','debt','save'].forEach(k=>{if(!okNum(S[k]))S[k]=0;S[k]=Math.round(cl(S[k],0,MAXM))});
  ['energy','hunger','peace','respect'].forEach(k=>{if(!okNum(S[k]))S[k]=50;S[k]=cl(S[k],0,100)});
- S.fuel=cl(okNum(S.fuel)?S.fuel:0,0,20);S.home=cl(S.home|0,0,2);S.inv=(Array.isArray(S.inv)?S.inv:[]).slice(0,4).map(v=>cl(v|0,0,10));while(S.inv.length<4)S.inv.push(0);
+ S.deaths=Math.max(0,S.deaths|0);S.tut=S.tut|0;S.fuel=cl(okNum(S.fuel)?S.fuel:0,0,20);S.home=cl(S.home|0,0,2);S.inv=(Array.isArray(S.inv)?S.inv:[]).slice(0,4).map(v=>cl(v|0,0,10));while(S.inv.length<4)S.inv.push(0);
  if(!okNum(S.t)||S.t<0)S.t=420;for(const k in CAR){const c=S.car[k]||(S.car[k]={lv:0,xp:0});c.lv=cl(c.lv|0,0,3);c.xp=cl(c.xp|0,0,999)}
  if(!okNum(S.p.x)||!okNum(S.p.y)||blocked(S.p.x,S.p.y)){S.p.x=BY.room.door.x;S.p.y=BY.room.door.y+20}}
 // all money flows through these two
@@ -60,47 +62,26 @@ function pay(n){if(!okNum(n)||n<0||n>MAXM)return false;n=Math.round(n);if(S.mone
 function earn(n){if(!okNum(n)||n<0)return;S.money=Math.min(MAXM,S.money+Math.round(Math.min(n,5e6)));fix()}
 function stat(k,d){if(okNum(d))S[k]=cl(S[k]+d,0,100)}
 function save(){if(S&&S.look)try{localStorage.setItem(SAVE,JSON.stringify(S))}catch(e){}}
-function load(){try{const s=JSON.parse(localStorage.getItem(SAVE));if(s&&s.v===2&&s.look&&s.p&&s.car){S=s;fix();return true}}catch(e){}return false}
-
+function load(){try{const s=JSON.parse(localStorage.getItem(SAVE));if(s&&s.v===3&&s.look&&s.p&&s.car){S=s;fix();return true}}catch(e){}
+ try{const s=JSON.parse(localStorage.getItem('sapa_world_v2'));if(s&&s.v===2&&s.look&&s.p&&s.car){s.v=3;s.deaths=0;s.tut=0;S=s;fix();save();setTimeout(()=>toast(tr('Your v2 save was carried into 3D Lagos ✅','We carry your old save enter 3D Lagos ✅')),1500);return true}}catch(e){}return false}
 // ---------- Geometry ----------
 const inGap=x=>(x>1400&&x<1600)||(x>3000&&x<3200);
 function water(x,y){return y>SEA||(inGap(x)&&!(y>RY&&y<RY+RH))}
 function blocked(x,y){if(x<10||y<10||x>WW-10||y>WH-10||water(x,y))return true;for(const b of B)if(x>b.x-8&&x<b.x+b.w+8&&y>b.y-4&&y<b.y+b.h+6)return true;return false}
 const vroad=d=>DIST[d].ox+640;
 const distAt=x=>x<1500?0:x<3100?1:2;
-
 // palms, lamps, npcs, danfos
 const PALMS=[],LAMPS=[],NPC=[],BUS=[];
 (function gen(){const r=rng(42);let k=0;while(PALMS.length<130&&k++<5000){const x=r()*WW,y=40+r()*(SEA-60);const vr=vroad(distAt(x));
- if(water(x,y)||blocked(x,y+4)||blocked(x,y-30)||(y>RY-30&&y<RY+RH+30)||(x>vr-30&&x<vr+110))continue;if(y>SHORE-20&&y<SHORE+4)continue;if(B.some(b=>x>b.x-40&&x<b.x+b.w+40&&y>b.y-20&&y<b.y+b.h+100))continue;PALMS.push({x,y,s:.8+r()*.5})}
+ if(water(x,y)||blocked(x,y+4)||blocked(x,y-30)||(y>RY-30&&y<RY+RH+30)||(x>vr-30&&x<vr+110))continue;if(y>SHORE-20&&y<SHORE+4)continue;if(B.some(b=>x>b.x-40&&x<b.x+b.w+40&&y>b.y-20&&y<b.y+b.h+100))continue;if(ZEB.some(z=>Math.abs(z-x)<60))continue;PALMS.push({x,y,s:.8+r()*.5})}
  for(let x=60;x<WW;x+=180)if(!inGap(x)){LAMPS.push({x,y:RY-14});LAMPS.push({x:x+90,y:RY+RH+14})}
  const sk=['#3b2219','#5a3825','#7a4b2e','#a0673f','#c68b59'],oc=['#e53935','#1e88e5','#43a047','#fdd835','#8e24aa','#fb8c00','#00897b','#fff'];
  for(let i=0;i<34;i++){const d=i%3,ox=DIST[d].ox,v=r()<.5;let a,b;
   if(v){const x=vroad(d)+(r()<.5?-14:94);a={x,y:30+r()*400};b={x,y:a.y+300+r()*300}}else{const y=r()<.5?RY-12:RY+RH+12;a={x:ox+20+r()*500,y};b={x:a.x+300+r()*500,y}}
   b.y=Math.min(b.y,SHORE-10);NPC.push({x:a.x,y:a.y,a,b,to:1,sp:28+r()*30,look:{skin:sk[i%5],out:oc[(i*3)%8],hair:i%5,body:i%2},ph:r()*6})}
  const bc=['#ffd400','#ffd400','#ffd400','#ffca28'];
- for(let i=0;i<5;i++)BUS.push({h:true,lane:i%2,x:r()*WW,sp:(i%2?1:-1)*(110+r()*50),c:bc[i%4]});
+ for(let i=0;i<6;i++)BUS.push({h:true,lane:i%2,x:r()*WW,sp:(i%2?1:-1)*(110+r()*50),c:bc[i%4]});for(let i=0;i<4;i++)BUS.push({h:true,ok:1,lane:i%2,x:r()*WW,sp:(i%2?1:-1)*(150+r()*50)});
  for(let d=0;d<3;d++)for(let j=0;j<2;j++)BUS.push({h:false,lane:j,d,y:r()*SHORE,sp:(j?-1:1)*(90+r()*40),c:'#ffd400'})})();
-
-// ---------- Sprites ----------
-const SPR={};
-function bsprite(b){if(SPR[b.id])return SPR[b.id];const s=2,c=document.createElement('canvas');c.width=b.w*s;c.height=(b.h+b.H)*s;const g=c.getContext('2d');g.scale(s,s);
- const w=b.w,h=b.h,HH=b.H;
- if(b.kind==='market'){g.fillStyle='#bcaaa4';g.fillRect(0,h*.4,w,h*.6+HH);const cols=['#e53935','#fdd835','#43a047','#1e88e5','#fb8c00'];for(let i=0;i<6;i++){const x=6+i*(w-12)/6;g.fillStyle=cols[i%5];g.fillRect(x,h*.15,(w-12)/6-6,h*.55);g.fillStyle='rgba(255,255,255,.5)';for(let j=0;j<4;j++)g.fillRect(x+j*14,h*.15,7,h*.55)}
- } else {g.fillStyle=b.roof;g.fillRect(0,0,w,h);g.fillStyle='rgba(255,255,255,.12)';g.fillRect(0,0,w,h/2);g.strokeStyle='rgba(0,0,0,.25)';g.lineWidth=2;g.strokeRect(1,1,w-2,h-2);
-  if(b.kind==='home'&&b.id==='room'){g.strokeStyle='rgba(0,0,0,.25)';for(let x=10;x<w;x+=14){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke()}}
-  if(b.kind==='worship'){g.fillStyle='#43a047';g.beginPath();g.arc(w*.3,h*.5,26,0,7);g.fill();g.fillStyle='#fff';g.fillRect(w*.72-4,h*.2,8,40);g.fillRect(w*.72-14,h*.2+10,28,8)}
-  if(b.kind==='bank'||b.kind==='tech'){g.fillStyle='rgba(255,255,255,.2)';for(let i=12;i<w-12;i+=30)g.fillRect(i,12,18,h-24)}}
- g.fillStyle=b.col;g.fillRect(0,h,w,HH);g.fillStyle='rgba(0,0,0,.12)';g.fillRect(0,h,w,5);
- const win=b.kind==='club'?'#e040fb':b.kind==='bank'||b.kind==='tech'||b.id==='flat'?'#4fc3f7':'#5d4037';
- if(HH>45){g.fillStyle=win;const rows=Math.floor((HH-40)/26)+1;for(let r=0;r<rows;r++)for(let x=12;x<w-28;x+=34){if(Math.abs(x+9-w/2)<26)continue;g.fillRect(x,h+10+r*26,18,15)}}
- g.fillStyle='#3e2723';g.fillRect(w/2-14,h+HH-32,28,32);g.fillStyle='#ffd400';g.fillRect(w/2+6,h+HH-17,3,3);
- const lab=b.lab[0].split(' (')[0];g.font='800 11px system-ui,sans-serif';const tw=Math.min(w-8,g.measureText(lab).width+12);
- g.fillStyle=b.kind==='club'?'#e040fb':'#111';g.fillRect(w/2-tw/2,h+2,tw,16);g.fillStyle=b.kind==='club'?'#111':'#ffd400';g.textAlign='center';g.textBaseline='middle';g.fillText(lab,w/2,h+10,tw-6);
- return SPR[b.id]=c}
-
-// ---------- Static chunks ----------
-const CH=400,CS=1.5,chunks=new Map();
 function drawStatic(g){const r=rng(7);
  g.fillStyle='#e8d29a';g.fillRect(0,0,WW,WH);
  for(let i=0;i<500;i++){g.fillStyle=i%3?'#9ccc65':'#7cb342';g.beginPath();g.ellipse(r()*WW,r()*SHORE,20+r()*60,12+r()*30,0,0,7);g.fill()}
@@ -113,17 +94,15 @@ function drawStatic(g){const r=rng(7);
  for(let d=0;d<3;d++){const x=vroad(d);g.fillStyle='#bdbdbd';g.fillRect(x-24,0,128,SHORE);g.fillStyle='#424242';g.fillRect(x,0,80,SHORE)}
  g.fillStyle='#ffd400';for(let x=0;x<WW;x+=48)g.fillRect(x,RY+RH/2-2,26,4);
  for(let d=0;d<3;d++){const x=vroad(d);for(let y=0;y<SHORE;y+=48)if(y<RY||y>RY+RH)g.fillRect(x+38,y,4,26);
-  g.fillStyle='#fff';for(let i=0;i<6;i++)g.fillRect(x+4+i*13,RY-22,8,20);g.fillStyle='#ffd400'}
+  g.fillStyle='#fff';g.fillStyle='#ffd400'}
+ // zebra crossings
+ g.fillStyle='#fafafa';for(const zx of ZEB)for(let i=0;i<7;i++)g.fillRect(zx-30,RY+4+i*13.5,60,8);
+ for(let d=0;d<3;d++){const x=vroad(d);for(const zy of [RY-120,RY+RH+120])for(let i=0;i<6;i++)g.fillRect(x+4+i*13,zy-25,8,50)}
  // lots
- g.fillStyle='#9e9e9e';['park0','park1','park2','fuel'].forEach(id=>{const b=BY[id];g.fillRect(b.x-20,b.y+b.h,b.w+40,60)});
+ g.fillStyle='#9e9e9e';['park0','park1','park2','fuel','hospital'].forEach(id=>{const b=BY[id];g.fillRect(b.x-20,b.y+b.h,b.w+40,60)});
  g.fillStyle='#d7ccc8';const m=BY.market;g.fillRect(m.x-10,m.y+m.h,m.w+20,40);
  g.font='900 40px system-ui';g.fillStyle='rgba(0,0,0,.12)';g.textAlign='center';DIST.forEach(d=>g.fillText(d.n[0].toUpperCase(),d.ox+700,RY+RH+80));
  g.font='900 26px system-ui';g.fillStyle='rgba(255,255,255,.5)';g.fillText('LAGOS LAGOON',2300,1320);}
-function chunk(i,j){const k=i+','+j;let c=chunks.get(k);if(c){chunks.delete(k);chunks.set(k,c);return c}
- c=document.createElement('canvas');c.width=c.height=CH*CS;const g=c.getContext('2d');g.setTransform(CS,0,0,CS,-i*CH*CS,-j*CH*CS);drawStatic(g);chunks.set(k,c);
- if(chunks.size>20)chunks.delete(chunks.keys().next().value);return c}
-
-// ---------- Drawing ----------
 function drawAvatar(g,x,y,lk,dir,ph,sc=1){g.save();g.translate(x,y);g.scale(sc,sc);const bw=lk.body?19:15,sw=Math.sin(ph)*3;
  g.fillStyle='rgba(0,0,0,.25)';g.beginPath();g.ellipse(0,0,11,4,0,0,7);g.fill();
  g.fillStyle='#263238';g.fillRect(-6,-12+sw*.3,5,12-sw*.3);g.fillRect(1,-12-sw*.3,5,12+sw*.3);
@@ -138,78 +117,170 @@ function drawAvatar(g,x,y,lk,dir,ph,sc=1){g.save();g.translate(x,y);g.scale(sc,s
  if(dir!==3){g.fillStyle='#111';const o=dir===1?3:dir===2?-3:0;g.fillRect(-4+o,-39,2,3);g.fillRect(2+o,-39,2,3)}
  g.restore()}
 function rr(g,x,y,w,h,r){g.beginPath();g.roundRect?g.roundRect(x,y,w,h,r):g.rect(x,y,w,h);g.fill()}
-function drawPalm(g,p){const s=p.s;g.save();g.translate(p.x,p.y);g.scale(s,s);g.fillStyle='rgba(0,0,0,.2)';g.beginPath();g.ellipse(4,0,16,5,0,0,7);g.fill();
- g.strokeStyle='#8d6e63';g.lineWidth=6;g.beginPath();g.moveTo(0,0);g.quadraticCurveTo(8,-30,2,-60);g.stroke();
- g.fillStyle='#2e7d32';for(let i=0;i<6;i++){const a=i/6*Math.PI*2;g.beginPath();g.ellipse(2+Math.cos(a)*16,-62+Math.sin(a)*8,18,6,a,0,7);g.fill()}g.fillStyle='#5d4037';g.beginPath();g.arc(2,-60,4,0,7);g.fill();g.restore()}
-function drawBus(g,b,x,y){g.save();g.translate(x,y);if(!b.h)g.rotate(Math.PI/2);if(b.sp<0)g.scale(-1,1);
- g.fillStyle='rgba(0,0,0,.25)';g.fillRect(-27,6,56,8);g.fillStyle=b.c;rr(g,-28,-14,56,26,5);g.fillStyle='#111';g.fillRect(-28,-2,56,3);g.fillRect(-28,6,56,2);
- g.fillStyle='#90caf9';g.fillRect(16,-11,9,20);for(let i=-22;i<12;i+=10)g.fillRect(i,-12,7,7);g.restore()}
-function drawLamp(g,l){g.fillStyle='#455a64';g.fillRect(l.x-1.5,l.y-34,3,34);g.fillStyle=(S.bo||nightF()<.2)?'#90a4ae':'#fff59d';g.beginPath();g.arc(l.x,l.y-36,4,0,7);g.fill()}
 function nightF(){const h=hour();if(h>=19||h<5)return 1;if(h>=17)return (h-17)/2;if(h<7)return 1-(h-5)/2;return 0}
-
-let cam={x:0,y:0},tm=0;
-function render(){const vw=W/Z,vh=H/Z;cam.x=cl(S.p.x-vw/2,0,Math.max(0,WW-vw));cam.y=cl(S.p.y-vh/2-20,0,Math.max(0,WH-vh));
- ctx.setTransform(DPR*Z,0,0,DPR*Z,-cam.x*DPR*Z,-cam.y*DPR*Z);
- for(let i=Math.floor(cam.x/CH);i<=Math.floor((cam.x+vw)/CH);i++)for(let j=Math.floor(cam.y/CH);j<=Math.floor((cam.y+vh)/CH);j++)if(i>=0&&j>=0&&i*CH<WW&&j*CH<WH)ctx.drawImage(chunk(i,j),i*CH,j*CH,CH,CH);
- // water shimmer
- ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=2;for(let y=Math.max(SEA+20,Math.floor(cam.y/40)*40);y<cam.y+vh;y+=40)for(let x=Math.floor(cam.x/90)*90;x<cam.x+vw;x+=90){const o=Math.sin(tm*1.5+x*.05+y)*12;ctx.beginPath();ctx.moveTo(x+o,y);ctx.quadraticCurveTo(x+o+12,y-5,x+o+24,y);ctx.stroke()}
- const vis=(x,y,m=120)=>x>cam.x-m&&x<cam.x+vw+m&&y>cam.y-m&&y<cam.y+vh+200;
- const list=[];
- for(const b of B)if(vis(b.x+b.w/2,b.y+b.h/2,b.w))list.push([b.y+b.h,0,b]);
- for(const p of PALMS)if(vis(p.x,p.y))list.push([p.y,1,p]);
- for(const l of LAMPS)if(vis(l.x,l.y))list.push([l.y,2,l]);
- for(const n of NPC)if(vis(n.x,n.y))list.push([n.y,3,n]);
- for(const b of BUS){const [x,y]=busPos(b);if(vis(x,y))list.push([y+12,4,b,x,y])}
- list.push([S.p.y,5]);list.sort((a,b)=>a[0]-b[0]);
- for(const it of list){const k=it[1],o=it[2];
-  if(k===0){const s=bsprite(o);ctx.drawImage(s,o.x,o.y-o.H,o.w,o.h+o.H)}
-  else if(k===1)drawPalm(ctx,o);else if(k===2)drawLamp(ctx,o);
-  else if(k===3)drawAvatar(ctx,o.x,o.y,o.look,o.dir||0,o.ph);else if(k===4)drawBus(ctx,o,it[3],it[4]);
-  else drawAvatar(ctx,S.p.x,S.p.y,S.look,S.p.dir,S.p.ph||0)}
- // door markers
- if(near){const d=near.door;ctx.fillStyle='#ffd400';ctx.strokeStyle='#111';ctx.lineWidth=2;const bob=Math.sin(tm*5)*3;ctx.beginPath();ctx.moveTo(d.x-8,d.y-20+bob);ctx.lineTo(d.x+8,d.y-20+bob);ctx.lineTo(d.x,d.y-10+bob);ctx.closePath();ctx.fill();ctx.stroke()}
- // name
- ctx.font='800 11px system-ui';ctx.textAlign='center';ctx.fillStyle='#111';ctx.fillText(S.look.name,S.p.x,S.p.y-56);
- // lighting
- const nf=nightF(),dark=nf*(S.bo?.78:.55)+(S.bo&&!nf?.12:0);
- ctx.setTransform(DPR,0,0,DPR,0,0);
- const h=hour();if(h>=16.5&&h<19.5&&!S.bo){ctx.fillStyle=`rgba(255,120,30,${.18*Math.sin((h-16.5)/3*Math.PI)})`;ctx.fillRect(0,0,W,H)}
- if(dark>0.02){const q=.5;if(lc.width!==Math.ceil(W*q)){lc.width=Math.ceil(W*q);lc.height=Math.ceil(H*q)}
-  lx.globalCompositeOperation='source-over';lx.clearRect(0,0,lc.width,lc.height);lx.fillStyle=`rgba(8,12,40,${dark})`;lx.fillRect(0,0,lc.width,lc.height);
-  lx.globalCompositeOperation='destination-out';const sc=Z*q;
-  const glow=(x,y,r,a)=>{const X=(x-cam.x)*sc,Y=(y-cam.y)*sc,R=r*sc;if(X<-R||Y<-R||X>lc.width+R||Y>lc.height+R)return;const gr=lx.createRadialGradient(X,Y,0,X,Y,R);gr.addColorStop(0,`rgba(0,0,0,${a})`);gr.addColorStop(1,'rgba(0,0,0,0)');lx.fillStyle=gr;lx.fillRect(X-R,Y-R,R*2,R*2)};
-  if(!S.bo){for(const l of LAMPS)glow(l.x,l.y-30,110,.85);for(const b of B)glow(b.door.x,b.door.y-20,90,.8)}else{glow(BY.fuel.door.x,BY.fuel.door.y,140,.9);glow(BY.club.door.x,BY.club.door.y,110,.7)}
-  glow(S.p.x,S.p.y-20,S.bo?85:60,.9);for(const b of BUS){const [x,y]=busPos(b);glow(x,y,60,.6)}
-  ctx.drawImage(lc,0,0,W,H)}}
+['fuel','club','hospital'].forEach(id=>BY[id].gen=1);
+const GEN=['fuel','club','hospital'].map(id=>({x:BY[id].door.x,y:BY[id].door.y}));
 function busPos(b){if(b.h)return[b.x,RY+(b.lane?RH*.73:RH*.27)];return[vroad(b.d)+(b.lane?60:20),b.y]}
+const genOn=()=>S&&S.genT>S.t;
+
+// ---------- Audio (WebAudio, all synthesized) ----------
+const AU={ctx:null,beatOn:false,
+ init(){if(this.ctx)return;try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;this.ctx=new C();this.mg=this.ctx.createGain();this.mg.gain.value=SET.snd?.6:0;this.mg.connect(this.ctx.destination);this.ambient()}catch(e){this.ctx=null}},
+ on(v){if(this.mg)this.mg.gain.value=v?.6:0},
+ tone(f,d,type='square',v=.15,t0=0,f2){const c=this.ctx;if(!c||!SET.snd)return;const t=c.currentTime+t0,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(this.mg);o.start(t);o.stop(t+d+.05)},
+ noise(d,v=.3,fq=800,t0=0){const c=this.ctx;if(!c||!SET.snd)return;const n=Math.max(1,c.sampleRate*d|0),b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);const s=c.createBufferSource();s.buffer=b;const f=c.createBiquadFilter();f.frequency.value=fq;const g=c.createGain();g.gain.value=v;s.connect(f);f.connect(g);g.connect(this.mg);s.start(c.currentTime+t0)},
+ horn(v=1){v*=.09;this.tone(392,.3,'sawtooth',v);this.tone(494,.3,'sawtooth',v*.8);this.tone(392,.22,'sawtooth',v,.38);this.tone(494,.22,'sawtooth',v*.8,.38)},
+ crash(){this.noise(.7,.9,1400);this.tone(140,.5,'square',.25,0,40)},
+ click(){this.tone(880,.05,'square',.05)},coin(){this.tone(988,.08,'square',.07);this.tone(1319,.15,'square',.07,.08)},
+ door(){this.tone(220,.15,'triangle',.15);this.tone(165,.2,'triangle',.12,.12)},
+ ambient(){const c=this.ctx,n=c.sampleRate*2,b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0);let l=0;for(let i=0;i<n;i++){l=(l+.02*(Math.random()*2-1))/1.02;a[i]=l*3}
+  const s=c.createBufferSource();s.buffer=b;s.loop=true;const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=450;this.ag=c.createGain();this.ag.gain.value=.1;s.connect(f);f.connect(this.ag);this.ag.connect(this.mg);s.start()},
+ tick(){const c=this.ctx;if(!c)return;this.ag.gain.value=IN?.02:.1;
+  if(this.beatOn&&SET.snd){if(!this.nb||this.nb<c.currentTime)this.nb=c.currentTime+.05;while(this.nb<c.currentTime+.25){const t=this.nb-c.currentTime,s=this.step=(this.step||0)+1;
+   if(s%2===1)this.tone(120,.2,'sine',.5,t,45);else this.noise(.04,.12,9000,t);if(s%8===3||s%8===6)this.tone(s%16<8?110:98,.18,'square',.06,t);if(s%4===2)this.noise(.09,.18,2500,t);this.nb+=.235}}
+  if(!IN&&S&&S.look&&Math.random()<.004)this.horn(.25)}};
+addEventListener('pointerdown',()=>AU.init(),{once:true});addEventListener('keydown',()=>AU.init(),{once:true});
+
+// ---------- Speech bubbles ----------
+const BUB=[];
+function say(txt,x,y,z,dur=3){if(BUB.length>5){BUB[0].el.remove();BUB.shift()}const el=document.createElement('div');el.className='bub';el.textContent=txt;$('#bubs').appendChild(el);BUB.push({el,x,y,z,t:dur})}
+function bubTick(dt){for(let i=BUB.length-1;i>=0;i--){const b=BUB[i];b.t-=dt;const s=R.screen(b.x,b.y,b.z);if(b.t<=0){b.el.remove();BUB.splice(i,1);continue}b.el.style.display=s.vis?'block':'none';b.el.style.transform=`translate(${s.x}px,${s.y}px) translate(-50%,-100%)`;b.el.style.opacity=Math.min(1,b.t*2)}}
+const CHAT=[['How far, my guy?','How far, my guy?'],['Sapa will not catch me this year!','Sapa no go catch me this year!'],['NEPA took the light again o','NEPA don take light again o'],['Excuse me, I am rushing!','Abeg shift, I dey rush!'],['This traffic is something else','This traffic na wa o'],['Who has a charger?','Who get charger?'],['Cold pure water! ₦50!','Pure water! Cold one! ₦50!'],['God is running Lagos','Na God dey run Lagos'],['Watch out for danfo o!','Shine your eye for danfo o!'],['Japa or stay? Hmm.','Japa or stay? Hmm.']];
+const COND=[['Oshodi! Oshodi! Enter with your change!','Oshodi! Oshodi! Enter with your change!'],['CMS! Obalende! One more chance!','CMS! Obalende! One chance remain!'],['Lekki! Ajah! Move, move!','Lekki! Ajah! Wole, wole!']];
 
 // ---------- Input ----------
-const keys={};let joy=null,near=null;
-addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;if((e.key==='e'||e.key===' '||e.key==='Enter')&&uiFree()&&near){e.preventDefault();interact()}if(e.key==='p'&&uiFree())openPhone();if(e.key==='Escape'){closeModal();closePhone()}});
+const keys={};let joy=null,near=null,nearAct=null;const ptrs=new Map();let pinch=0;
+const touchy=('ontouchstart' in window)||matchMedia('(pointer:coarse)').matches;
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=1;if((k==='e'||k===' '||k==='enter')&&uiFree()&&(near||nearAct)){e.preventDefault();interact()}if(k==='p'&&uiFree())openPhone();if(k==='escape'){closeModal();closePhone()}
+ if(k==='q')R.cam.yaw+=.3;if(k==='r')R.cam.yaw-=.3});
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+addEventListener('blur',()=>{for(const k in keys)keys[k]=0});
 const jEl=$('#joy'),jK=jEl.firstElementChild;
-cv.addEventListener('pointerdown',e=>{if(!uiFree())return;joy={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};jEl.style.display='block';jEl.style.left=e.clientX-60+'px';jEl.style.top=e.clientY-60+'px';jK.style.transform='';cv.setPointerCapture(e.pointerId)});
-cv.addEventListener('pointermove',e=>{if(!joy||e.pointerId!==joy.id)return;let dx=e.clientX-joy.x,dy=e.clientY-joy.y;const m=Math.hypot(dx,dy),mx=45;if(m>mx){dx*=mx/m;dy*=mx/m}joy.dx=dx/mx;joy.dy=dy/mx;jK.style.transform=`translate(${dx}px,${dy}px)`});
-const jEnd=e=>{if(joy&&e.pointerId===joy.id){joy=null;jEl.style.display='none'}};cv.addEventListener('pointerup',jEnd);cv.addEventListener('pointercancel',jEnd);
-const uiFree=()=>S&&S.look&&$('#modal').classList.contains('hide')&&$('#phone').classList.contains('hide')&&$('#creator').classList.contains('hide');
+cv.addEventListener('pointerdown',e=>{if(!uiFree())return;try{cv.setPointerCapture(e.pointerId)}catch(_){}
+ if((e.pointerType==='touch'||touchy)&&e.clientX<innerWidth*.5&&!joy){joy={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};jEl.style.display='block';jEl.style.left=e.clientX-60+'px';jEl.style.top=e.clientY-60+'px';jK.style.transform=''}
+ else{ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y)}}});
+cv.addEventListener('pointermove',e=>{if(joy&&e.pointerId===joy.id){let dx=e.clientX-joy.x,dy=e.clientY-joy.y;const m=Math.hypot(dx,dy),mx=45;if(m>mx){dx*=mx/m;dy*=mx/m}joy.dx=dx/mx;joy.dy=dy/mx;jK.style.transform=`translate(${dx}px,${dy}px)`;return}
+ const p=ptrs.get(e.pointerId);if(!p)return;if(ptrs.size===1){R.cam.yaw-=(e.clientX-p.x)*.008;R.cam.pitch=cl(R.cam.pitch+(e.clientY-p.y)*.005,.1,1.3)}
+ p.x=e.clientX;p.y=e.clientY;if(ptrs.size===2){const [a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch>0)R.cam.dist=cl(R.cam.dist*pinch/d,4,24);pinch=d}});
+const pEnd=e=>{if(joy&&e.pointerId===joy.id){joy=null;jEl.style.display='none'}ptrs.delete(e.pointerId);pinch=0};cv.addEventListener('pointerup',pEnd);cv.addEventListener('pointercancel',pEnd);
+cv.addEventListener('wheel',e=>{e.preventDefault();R.cam.dist=cl(R.cam.dist*(1+e.deltaY*.001),4,24)},{passive:false});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+const vis=id=>!$(id).classList.contains('hide');
+const uiFree=()=>S&&S.look&&!vis('#modal')&&!vis('#phone')&&!vis('#creator')&&!vis('#title')&&!DEAD&&!fading&&!vis('#death');
 
 // ---------- Update ----------
-let evT=45,lastDist=-1,saveT=0;
-function update(dt){tm+=dt;
- for(const n of NPC){const t=n.to?n.b:n.a,dx=t.x-n.x,dy=t.y-n.y,m=Math.hypot(dx,dy);if(m<2)n.to^=1;else{n.x+=dx/m*n.sp*dt;n.y+=dy/m*n.sp*dt;n.ph+=dt*8;n.dir=Math.abs(dx)>Math.abs(dy)?(dx>0?1:2):(dy>0?0:3)}}
- for(const b of BUS){if(b.h){b.x+=b.sp*dt;if(b.x>WW+60)b.x=-60;if(b.x<-60)b.x=WW+60}else{b.y+=b.sp*dt;if(b.y>SHORE)b.y=-40;if(b.y<-40)b.y=SHORE}}
+let evT=45,lastDist=-1,saveT=0,tm=0,IN=null,DEAD=null,fading=false,chatT=3,condT=2;const PR={ry:0,ph:0,moving:false};
+function worldTick(dt){
+ for(const n of NPC){const t=n.to?n.b:n.a,dx=t.x-n.x,dy=t.y-n.y,m=Math.hypot(dx,dy);if(m<2)n.to^=1;else{n.x+=dx/m*n.sp*dt;n.y+=dy/m*n.sp*dt;n.ph+=dt*8;n.ry=Math.atan2(dx,dy)}}
+ const live=S&&S.look&&!IN&&!DEAD&&!vis('#title');
+ for(const v of BUS){if(v.base==null){v.base=v.sp;v.cur=Math.abs(v.sp)}const [x,y]=busPos(v),dir=Math.sign(v.base);let tgt=Math.abs(v.base);
+  if(live){const p=S.p,along=(v.h?p.x-x:p.y-y)*dir,perp=Math.abs(v.h?p.y-y:p.x-x);
+   if(along>0&&along<190&&perp<34){const onZ=v.h?ZEB.some(z=>Math.abs(p.x-z)<34):(Math.abs(p.y-(RY-120))<28||Math.abs(p.y-(RY+RH+120))<28);tgt*=onZ?0:(v.ok?.75:.5);
+    if((v.hc||0)<=0){v.hc=3.2;AU.horn(1);say(v.ok?tr('Pim pim! Clear the road!','Pim pim! Comot for road!'):tr('PAAAP! Are you mad? Move!','PAAAP! You dey craze? Shift!'),x*K,2.8,y*K,1.8)}}
+   const hl=v.ok?20:44,hw=v.ok?9:20,da=v.h?p.x-x:p.y-y,dp=v.h?p.y-y:p.x-x;
+   if(Math.abs(da)<hl+6&&Math.abs(dp)<hw+6){if(v.cur>45){die(v);}else{const s=Math.sign(dp)||1;if(v.h)p.y=y+s*(hw+7);else p.x=x+s*(hw+7)}}}
+  v.hc=(v.hc||0)-dt;v.cur+=(tgt-v.cur)*Math.min(1,dt*(tgt<v.cur?3:1.2));v.sp=dir*v.cur;
+  if(v.h){v.x+=v.sp*dt;if(v.x>WW+60)v.x=-60;if(v.x<-60)v.x=WW+60}else{v.y+=v.sp*dt;if(v.y>SHORE)v.y=-40;if(v.y<-40)v.y=SHORE}}}
+function lerpA(a,b,t){let d=((b-a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;return a+d*Math.min(1,t)}
+function update(dt){
+ if(DEAD){DEAD.t+=dt;if(DEAD.t>1.4&&!DEAD.shown){DEAD.shown=1;showDeath()}return}
  if(!uiFree())return;
  S.t+=dt*1.5;hourTicks();
  let mx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),my=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
  if(joy&&Math.hypot(joy.dx,joy.dy)>.15){mx=joy.dx;my=joy.dy}
- const m=Math.hypot(mx,my);if(m>0){if(m>1){mx/=m;my/=m}const sp=(S.energy<10?95:155)*dt,p=S.p;
-  const nx=p.x+mx*sp,ny=p.y+my*sp;if(!blocked(nx,p.y))p.x=nx;if(!blocked(p.x,ny))p.y=ny;
-  p.ph=(p.ph||0)+dt*11;p.dir=Math.abs(mx)>Math.abs(my)?(mx>0?1:2):(my>0?0:3);S.walked=(S.walked||0)+sp;
-  evT-=dt;if(evT<=0){evT=50+Math.random()*60;if(Math.random()<.6){streetEvent();return}}}
- near=null;let bd=52;for(const b of B){const d=Math.hypot(b.door.x-S.p.x,b.door.y-S.p.y);if(d<bd){bd=d;near=b}}
- const di=distAt(S.p.x);if(di!==lastDist){if(lastDist>=0)toast('📍 '+L(DIST[di].n));lastDist=di}
+ const gp=navigator.getGamepads&&[...navigator.getGamepads()].find(Boolean);if(gp){const a=gp.axes;if(Math.hypot(a[0],a[1])>.2){mx=a[0];my=a[1]}if(Math.abs(a[2])>.2)R.cam.yaw-=a[2]*dt*2.5;if(Math.abs(a[3])>.2)R.cam.pitch=cl(R.cam.pitch+a[3]*dt*1.5,.1,1.3);if(gp.buttons[0]&&gp.buttons[0].pressed&&!gp._a&&(near||nearAct))interact();gp._a=gp.buttons[0]&&gp.buttons[0].pressed}
+ const m=Math.hypot(mx,my);PR.moving=false;
+ if(m>.1){if(m>1){mx/=m;my/=m}const yaw=R.cam.yaw,fx=mx*Math.cos(yaw)+my*Math.sin(yaw),fz=-mx*Math.sin(yaw)+my*Math.cos(yaw);PR.ry=lerpA(PR.ry,Math.atan2(fx,fz),dt*12);PR.moving=true;PR.ph+=dt*11;
+  if(IN){const sp=(S.energy<10?2.4:3.6)*dt,p=IN.p,sw=IN.sp.w/2-.35,sd=IN.sp.d/2-.35;const bl=(x,z)=>Math.abs(x)>sw||Math.abs(z)>sd||IN.cols.some(c=>Math.abs(x-c.x)<c.hw&&Math.abs(z-c.z)<c.hd);
+   const nx=p.x+fx*sp,nz=p.z+fz*sp;if(!bl(nx,p.z))p.x=nx;if(!bl(p.x,nz))p.z=nz}
+  else{const sp=(S.energy<10?70:115)*dt,p=S.p;const nx=p.x+fx*sp,ny=p.y+fz*sp;if(!blocked(nx,p.y))p.x=nx;if(!blocked(p.x,ny))p.y=ny;S.walked=(S.walked||0)+sp;
+   evT-=dt;if(evT<=0){evT=60+Math.random()*60;if(Math.random()<.5){streetEvent();return}}}}
+ near=null;nearAct=null;
+ if(IN){let bd=9;for(const a of IN.acts){const d=Math.hypot(a.x-IN.p.x,a.z-IN.p.z);if(d<a.r&&d/a.r<bd){bd=d/a.r;nearAct=a}}
+  chatT-=dt;if(chatT<=0&&IN.sp.npcs.length){chatT=5+Math.random()*4;const n=IN.sp.npcs[Math.floor(Math.random()*IN.sp.npcs.length)];if(n.say)say(L(n.say),n.x,2.3,n.z,3)}}
+ else{let bd=52;for(const b of B){const d=Math.hypot(b.door.x-S.p.x,b.door.y-S.p.y);if(d<bd){bd=d;near=b}}
+  const di=distAt(S.p.x);if(di!==lastDist){if(lastDist>=0)toast('📍 '+L(DIST[di].n));lastDist=di}
+  chatT-=dt;if(chatT<=0){chatT=3.5+Math.random()*3;let bn=null,bdd=420;NPC.forEach((n,i)=>{if(i>=R.npcMax)return;const d=Math.hypot(n.x-S.p.x,n.y-S.p.y);if(d<bdd&&Math.random()<.6){bdd=d;bn=n}});if(bn)say(L(CHAT[Math.floor(Math.random()*CHAT.length)]),bn.x*K,2.3,bn.y*K,3)}
+  condT-=dt;if(condT<=0){condT=4.5;for(let i=0;i<3;i++){const d=BY['park'+i].door;if(Math.hypot(d.x-S.p.x,d.y-S.p.y)<500){say(L(COND[i]),d.x*K-2,2.6,(d.y+40)*K,3);AU.tone(660,.08,'square',.04)}}}}
  if(S.energy<=0)faint();
  saveT+=dt;if(saveT>8){saveT=0;save()}}
+
+// ---------- Death & hospital ----------
+function die(v){if(DEAD)return;const dx=v.h?Math.sign(v.sp):0,dz=v.h?0:Math.sign(v.sp);DEAD={t:0,dx,dz,by:v.ok?'okada':'danfo'};AU.crash();closeModal();closePhone();joy=null;jEl.style.display='none';$('#act').classList.add('hide');PR.moving=false}
+const bill=()=>Math.min(60000,25000+5000*(S.deaths|0));
+function showDeath(){const by=DEAD.by==='okada'?tr('an okada','okada'):tr('a danfo','danfo');const d=$('#death');d.classList.remove('hide');
+ d.innerHTML=`<div class="dcard"><div class="em">💥🚌</div><h1>${tr('You don get jam!','You don get jam!')}</h1><p>${tr(`You were hit by ${by}.`,`${by==='okada'?'Okada':'Danfo'} don jam you.`)}</p>
+ <p class="sm">${tr('Times hit so far','How many times you don jam')}: <b>${(S.deaths|0)+1}</b></p>
+ <button id="respawn">🏥 ${tr('Wake up at General Hospital','Wake up for General Hospital')}<small>${tr('Bill','Bill')} ${N(bill())} · ${tr('unpaid part goes to debt','wetin remain go enter debt')} · ⚡60</small></button>
+ <button id="gover" class="alt">💀 ${tr('Game over — start a new life','Game over — start new life')}</button></div>`;
+ $('#respawn').onclick=respawn;$('#gover').onclick=gameOver}
+function respawn(){const b=bill(),paid=Math.min(S.money,b);pay(paid);S.debt=Math.min(5e6,S.debt+(b-paid));S.deaths=(S.deaths|0)+1;S.energy=60;stat('peace',-12);adv(6*60);
+ const d=BY.hospital.door;S.p.x=d.x;S.p.y=d.y+16;DEAD=null;$('#death').classList.add('hide');fix();save();hud();toast(tr(`🏥 Doctors patched you up. Bill: ${N(b)}${b>paid?' (part added to debt)':''}`,`🏥 Doctor don patch you. Bill: ${N(b)}${b>paid?' (the rest enter debt)':''}`));AU.door()}
+function gameOver(){const d=$('#death');d.innerHTML=`<div class="dcard"><div class="em">🪦</div><h1>${tr('Game over','Game don end')}</h1><p>${S.look.name} · ${tr('Day','Day')} ${day()} · ${N(S.money+S.save-S.debt)} ${tr('net worth','net worth')}</p><button id="again">🔁 ${tr('New character','New person')}</button></div>`;
+ $('#again').onclick=()=>{localStorage.removeItem(SAVE);const lang=S.lang;S={lang};DEAD=null;d.classList.add('hide');creator()}}
+function hospitalP(b){panel(()=>({em:'🏥',title:L(b.lab),text:tr(`Nurse: "Welcome. You have been brought in ${S.deaths|0} time(s)."`,`Nurse: "You don come here ${S.deaths|0} time(s) o. Shine your eye for road!"`),acts:[
+ {l:tr('🩺 Check-up ','🩺 Check-up ')+N(3000),s:'+☮️8 +⚡8',dis:S.money<3000,f:()=>{if(pay(3000)){stat('peace',8);stat('energy',8);adv(30)}}},
+ {l:tr('🛏️ Rest in the ward (4h) ','🛏️ Rest for ward (4h) ')+N(5000),s:'+⚡40',dis:S.money<5000,f:()=>{if(pay(5000)){stat('energy',40);adv(240)}}}]}))}
+
+// ---------- Interiors ----------
+const NL=(skin,out,hair,body=0)=>({skin,out,hair,body});
+function fade(cb){fading=true;const f=$('#fade');f.classList.add('on');setTimeout(()=>{try{cb()}finally{setTimeout(()=>{f.classList.remove('on');fading=false},80)}},360)}
+function interact(){AU.click();if(IN){if(nearAct)nearAct.act.f();fix();save();hud();return}if(!near)return;const b=near;
+ if(b.kind==='park'||b.kind==='beach')return placePanel(b);
+ if(b.kind==='club'){const hr=hour();if(!(hr>=21||hr<4)){toast(tr('🚫 Bouncer: "Club opens 9pm. Come back later!"','🚫 Bouncer: "Club never open. Come back 9pm!"'));say(tr('We open 9pm!','We dey open 9pm!'),b.door.x*K,2.6,b.door.y*K,2.5);return}}
+ enterBuilding(b)}
+function enterBuilding(b){AU.door();fade(()=>{const sp=interiorSpec(b);sp.bo=S.bo&&!b.gen&&!genOn();const r=R.enterInterior(sp);IN={b,sp,cols:r.cols,acts:r.acts,p:{x:0,z:sp.d/2-1.3}};PR.ry=Math.PI;R.cam.yaw=0;R.cam.pitch=Math.max(R.cam.pitch,.6);
+  R.setInteriorPower(sp.bo,genOn());AU.beatOn=b.kind==='club';chatT=1;hud();toast('🚪 '+L(b.lab).split(' (')[0])})}
+function leaveInterior(now){if(!IN)return;const go=()=>{if(!IN)return;R.exitInterior();const d=IN.b.door;S.p.x=d.x;S.p.y=d.y+14;IN=null;AU.beatOn=false;PR.ry=0;nearAct=null;hud()};if(now)go();else{AU.door();fade(go)}}
+function doSleep(){fade(()=>{sleep();fix();save();hud()})}
+const watchTV={l:tr('📺 Watch TV (30 min)','📺 Watch TV small'),f:()=>{if(S.bo&&!genOn())return toast(tr('No light, no TV. NEPA!','No light, no TV. NEPA o!'));stat('peace',4);adv(30);toast('📺 '+tr('Nollywood marathon','Nollywood film')+' +☮️4')}};
+const genAct={l:tr('🔌 Start generator (1L fuel)','🔌 On gen (1L fuel)'),f:()=>{if(!S.bo)return toast(tr('There is light. No need for gen.','Light dey. No need gen.'));if(S.fuel<1)return toast(tr('No fuel! Buy at the fuel station.','No fuel! Go buy for fuel station.'));S.fuel--;S.genT=S.t+120;stat('peace',6);R.setInteriorPower(false,true);AU.noise(1.2,.25,250);toast(tr('🔌 Gen is roaring! Light for 2 hours.','🔌 Gen don start! Light for 2 hours.'))}};
+function interiorSpec(b){const k=b.kind,title=L(b.lab).split(' (')[0],exit={t:'exit',act:{l:tr('🚪 Exit to street','🚪 Comot go outside'),f:()=>leaveInterior()}},M=NL;let sp;
+ const shop=f=>({l:f[0],f:f[1]});
+ if(k==='home'){const mine=!S.homeless&&HOMES[S.home].b===b.id,tier=b.id==='flat'?2:(mine&&S.home===1?1:0);
+  const bedAct={l:mine?tr('😴 Sleep','😴 Sleep'):tr('🔑 Talk to the agent about this place','🔑 Talk to agent'),f:()=>mine?doSleep():homeP(b)};
+  const rent={l:tr('🏠 Rent & house matters','🏠 House rent matter'),f:()=>homeP(b)};
+  if(tier===0)sp={w:5.6,d:5.6,items:[{t:'bed',x:-1.6,z:-1.4,act:bedAct},{t:'fan',x:2.3,z:-2.3},{t:'tv',x:1.1,z:-2.4,act:watchTV},{t:'gen',x:2.2,z:1.1,act:genAct},{t:'table',x:-1.7,z:1.2,act:rent},{t:'lantern',x:-1.9,z:1.2}],npcs:[]};
+  else if(tier===1)sp={w:7.2,d:6.6,items:[{t:'rug',x:.6,z:-.4},{t:'bed',x:-2.3,z:-1.9,act:bedAct},{t:'wardrobe',x:-.3,z:-2.95},{t:'tv',x:1.8,z:-3,act:watchTV},{t:'fan',x:3.1,z:-2.8},{t:'table',x:2.4,z:.7,act:rent},{t:'gen',x:3.1,z:2.4,act:genAct},{t:'plant',x:-3.1,z:2.6}],npcs:[]};
+  else sp={w:10,d:9,items:[{t:'rug',x:2.5,z:-2.6},{t:'bed',x:-3.5,z:-3,act:bedAct},{t:'wardrobe',x:-1.4,z:-4.1},{t:'tv',x:2.5,z:-4.15,act:watchTV},{t:'sofa',x:2.5,z:-1.6,ry:Math.PI},{t:'plant',x:4.5,z:-4},{t:'fridge',x:4.5,z:2.6,act:{l:tr('🥤 Cold drink from fridge','🥤 Cold drink'),f:()=>{stat('energy',3);stat('peace',2);adv(10);toast('🥤 Ahh!')}}},{t:'table',x:-3,z:1.6,act:rent},{t:'ac',x:0,z:-4.35},{t:'gen',x:-4.3,z:3.6,act:genAct},{t:'plant',x:-4.5,z:-.5}],npcs:mine?[]:[{x:-2,z:1.6,ry:0,look:M('#7a4b2e','#212121',3,1),say:['This one na premium, sir.','This one na premium o.']}]};
+  Object.assign(sp,{tier,wall:tier===2?'#eceff1':tier===1?'#b3d4c6':'#c9a77c',floor:tier===2?'#d7ccc8':tier===1?'#90a4ae':'#8d6e63',fpat:tier===2?'wood':tier===1?'tile':'',lampI:tier===0?14:24});}
+ else if(k==='buka'){const b2=b.id==='buka2';sp={w:9,d:7.5,wall:b2?'#ffe0b2':'#f4e1b0',floor:'#a1887f',items:[{t:'counter',x:0,z:-2.3,w:4,c:b2?'#e65100':'#2e7d32',act:{l:tr('🍲 Order food','🍲 Order food'),f:()=>bukaP(b)},r:2.6},{t:'pot',x:-1.3,z:-3.2},{t:'pot',x:0,z:-3.2},{t:'pot',x:1.3,z:-3.2},{t:'btable',x:-2.5,z:.5},{t:'btable',x:2.5,z:.5},{t:'bench',x:-2.5,z:1.35},{t:'bench',x:2.5,z:1.35},{t:'bench',x:-2.5,z:-.35},{t:'bench',x:2.5,z:-.35}],
+  npcs:[{x:0,z:-2.95,look:M('#5a3825',b2?'#e65100':'#8e24aa',4,1),say:b2?['Fresh suya! Extra pepper?','Suya dey! You want extra pepper?']:['Come and chop! Amala is hot!','Come chop! Amala dey hot!']},{x:-3.7,z:.5,ry:Math.PI/2,look:M('#3b2219','#1e88e5',0)},{x:3.7,z:.6,ry:-Math.PI/2,look:M('#a0673f','#fdd835',2)}]}}
+ else if(k==='tech'){const it=[];[-3.6,0,3.6].forEach(x=>[-2.4,.8].forEach(z=>it.push({t:'desk',x,z,act:{l:tr('💻 Work at desk','💻 Work for desk'),f:()=>workP(b)}})));it.push({t:'coffee',x:5.3,z:-3.9,act:{l:tr('☕ Free coffee','☕ Free coffee'),f:()=>{stat('energy',5);stat('peace',2);adv(30);toast('☕ +⚡5')}}},{t:'plant',x:-5.4,z:-3.9},{t:'plant',x:-5.4,z:2.8});
+  sp={w:12,d:9,wall:'#e3f2fd',floor:'#cfd8dc',fpat:'tile',items:it,npcs:[{x:-3.6,z:-1.6,ry:Math.PI,look:M('#7a4b2e','#212121',1)},{x:3.6,z:1.6,ry:Math.PI,look:M('#c68b59','#1e88e5',0,1)},{x:0,z:-1.6,ry:Math.PI,look:M('#3b2219','#43a047',2),say:['Who pushed to main on Friday?!','Who push to main on Friday?!']},{x:4.6,z:-3.4,look:M('#5a3825','#fb8c00',3),say:['Standup in 5 minutes!','Standup in 5 minutes o!']}]}}
+ else if(k==='bank')sp={w:12,d:9,wall:'#eceff1',floor:'#b0bec5',fpat:'tile',items:[{t:'teller',x:0,z:-2.6,act:{l:tr('🏦 Talk to teller','🏦 Meet teller'),f:()=>bankP(b)},r:2.8},{t:'atm',x:5,z:-3.9,act:{l:tr('🏧 ATM: withdraw ₦10,000','🏧 ATM: collect ₦10,000'),f:()=>{if(S.save<=0)return toast(tr('ATM: Insufficient funds in savings.','ATM: Your savings don dry.'));const w=Math.min(10000,S.save);S.save-=w;earn(w);AU.coin();toast('🏧 +'+N(w))}}},{t:'plant',x:-5.4,z:-3.9},{t:'bench',x:-3,z:1.6},{t:'bench',x:3,z:1.6}],
+  npcs:[{x:-1,z:-3.3,look:M('#5a3825','#0d47a1',0,1),say:['Next customer, please!','Next customer abeg!']},{x:1,z:-3.3,look:M('#a0673f','#0d47a1',4)},{x:0,z:-1.3,ry:Math.PI,look:M('#3b2219','#fdd835',1)},{x:4.8,z:3,look:M('#7a4b2e','#212121',3,1),say:['Security: no phone calls inside!','Security: no phone call for inside!']}]};
+ else if(k==='market'){const it=[],np=[],cols=['#e53935','#fdd835','#43a047','#1e88e5','#fb8c00','#8e24aa'];let i=0;for(const z of [-3,.6])for(const x of [-4,0,4]){it.push({t:'stall',x,z,c:cols[i],act:{l:tr('🛍️ Trade at stall','🛍️ Buy & sell'),f:()=>marketP(b)}});np.push({x,z:z-.9,look:M(['#3b2219','#7a4b2e','#5a3825'][i%3],cols[(i+2)%6],[4,0,2,3,4,1][i],i%2),say:i%2?['Customer! Come and price!','Customer! Come price am!']:['Fine pepper! Cheap cheap!','Fine pepper! E cheap!']});i++}
+  sp={w:13,d:10,wall:'#d7ccc8',floor:'#bcaaa4',items:it,npcs:np}}
+ else if(k==='club'){const dancers=[];for(let i=0;i<7;i++)dancers.push({x:-3+(i%4)*2+(i>3?1:0),z:-1.5+Math.floor(i/4)*2.4,look:NL(['#3b2219','#7a4b2e','#c68b59','#5a3825'][i%4],['#e040fb','#00e5ff','#fdd835','#e53935','#fff'][i%5],i%5,i%2),dance:1,say:i===2?['Gbese! Gbese!','Gbese! Gbese!']:i===5?['DJ, play Burna!','DJ, play Burna!']:null});
+  sp={w:12,d:11,wall:'#1a0033',floor:'#111',lampI:4,lampC:'#b388ff',powered:1,items:[{t:'dj',x:0,z:-4.6,act:{l:tr('🎧 Dance by the DJ','🎧 Dance near DJ'),f:clubDance},r:3},{t:'bar',x:-5.2,z:.5,ry:Math.PI/2,act:{l:tr('🍾 Bar: entry & VIP','🍾 Bar: gate & VIP'),f:()=>clubP(b)},r:2.4},{t:'speaker',x:-5.3,z:-4.9},{t:'speaker',x:5.3,z:-4.9},{t:'speaker',x:5.3,z:3}],
+  npcs:dancers.concat([{x:0,z:-5.2,look:NL('#3b2219','#212121',3,1),say:['Make some noise!!!','Make una shout!!!']}])}}
+ else if(k==='worship')sp={w:11,d:10,wall:'#fafafa',floor:'#d7ccc8',fpat:'wood',items:[{t:'altar',x:2.6,z:-3.9,act:{l:tr('⛪ Pray / give at the altar','⛪ Pray / drop offering'),f:()=>worshipP(b)}},{t:'mihrab',x:-2.8,z:-4.85,act:{l:tr('🕌 Pray / reflect','🕌 Pray small'),f:()=>worshipP(b)},r:2.2},{t:'pew',x:2.6,z:-1.4},{t:'pew',x:2.6,z:.4},{t:'pew',x:2.6,z:2.2}],npcs:[{x:2.6,z:-4.6,look:NL('#5a3825','#fafafa',0,1),say:['God will provide, my child.','God go provide, my pikin.']},{x:-2.8,z:-4.2,ry:Math.PI,look:NL('#7a4b2e','#fafafa',3)}]};
+ else if(k==='fuel')sp={w:8,d:7,wall:'#e8f5e9',floor:'#cfd8dc',fpat:'tile',powered:1,items:[{t:'counter',x:0,z:-1.9,w:3,c:'#0b7a3e',act:{l:tr('⛽ Buy fuel for your gen','⛽ Buy fuel for gen'),f:()=>fuelP(b)},r:2.3},{t:'shelf',x:-2.5,z:-3.2},{t:'shelf',x:2.5,z:-3.2},{t:'fridge',x:3.5,z:.6}],npcs:[{x:0,z:-2.6,look:NL('#3b2219','#0b7a3e',3,1),say:['Fuel dey! No queue today.','Fuel dey! No queue today.']}]};
+ else if(k==='studio')sp={w:10,d:8,wall:'#2b2b2b',floor:'#37474f',lampC:'#ff80ab',items:[{t:'console',x:0,z:-2.6,act:{l:tr('🎚️ Work a session','🎚️ Do session'),f:()=>workP(b)}},{t:'mic',x:-2.7,z:-.6,act:{l:tr('🎤 Hype on the mic (work)','🎤 Hype for mic (work)'),f:()=>workP(b)}},{t:'speaker',x:-4.4,z:-3.4},{t:'speaker',x:4.4,z:-3.4},{t:'sofa',x:2.5,z:2.6,ry:Math.PI}],npcs:[{x:0,z:-3.4,look:NL('#5a3825','#ff4081',1),say:['Run am back one more time!','Run am back one more time!']}]};
+ else if(k==='hospital')sp={w:12,d:9,wall:'#e0f7fa',floor:'#eceff1',fpat:'tile',powered:1,items:[{t:'counter',x:0,z:-2.4,w:3.4,c:'#fafafa',act:{l:tr('🏥 Reception','🏥 Reception'),f:()=>hospitalP(b)},r:2.6},{t:'hbed',x:-4.8,z:-2.6,act:{l:tr('🛏️ Rest in ward','🛏️ Rest for ward'),f:()=>hospitalP(b)}},{t:'hbed',x:-4.8,z:.6},{t:'hbed',x:4.8,z:-2.6},{t:'hbed',x:4.8,z:.6},{t:'plant',x:-5.4,z:3.6}],npcs:[{x:0,z:-3.1,look:NL('#7a4b2e','#ffffff',4),say:['Shine your eye for road o!','Shine your eye for road o!']},{x:4.8,z:.6,look:NL('#3b2219','#90caf9',0),say:['Okada jam me for Lekki...','Okada jam me for Lekki...']}]};
+ sp.kind=k;sp.title=title;sp.items.push(Object.assign(exit,{x:0,z:sp.d/2-.4,r:1.4}));sp.wall=sp.wall||'#eee';sp.floor=sp.floor||'#999';if(sp.tier==null)sp.tier=1;return sp}
+function clubDance(){if(!(S.clubT>S.t))return toast(tr('Pay entry at the bar first.','Pay gate fee for bar first.'));if((S.dances|0)>=3&&S.danceT===S.clubT)return toast(tr('Your legs are done for tonight!','Your leg don tire for tonight!'));if(S.energy<8)return toast(tr('Too tired to dance.','You don tire to dance.'));
+ if(S.danceT!==S.clubT){S.danceT=S.clubT;S.dances=0}S.dances++;stat('respect',3);stat('peace',3);stat('energy',-8);adv(20);say(tr(`DJ: Make some noise for ${S.look.name}!`,`DJ: Shout for ${S.look.name}!`),0,2.6,-4.6,3);toast('💃 +⭐3 +☮️3')}
+
+// ---------- Tutorial ----------
+const TIPS=[()=>touchy?tr('👈 Drag the LEFT side to walk. 👉 Drag the RIGHT side to turn the camera. Pinch to zoom.','👈 Drag LEFT side to waka. 👉 Drag RIGHT side to turn camera. Pinch to zoom.'):tr('WASD / arrows to walk. Drag the mouse to turn the camera, scroll to zoom. Q/R also rotate.','WASD / arrow to waka. Drag mouse turn camera, scroll to zoom.'),
+ ()=>tr('Walk to a door with the yellow arrow and press the button (or E) to go inside.','Waka reach door wey get yellow arrow, press button (or E) enter inside.'),
+ ()=>tr('🚌 Danfos and okadas WILL hit you. Cross at the white zebra crossings — drivers stop there.','🚌 Danfo and okada go jam you o! Cross for zebra — dem go stop.'),
+ ()=>tr('📱 Your phone has stats, bank, settings and the Sapa Challenge. Pay rent at your room!','📱 Your phone get stats, bank, settings and Sapa Challenge. Pay rent for your room!')];
+let tipTm=null;function nextTip(d=1500){clearTimeout(tipTm);if(!S||S.tut>=TIPS.length)return;tipTm=setTimeout(()=>{if(!S||!TIPS[S.tut])return;if(!uiFree()){nextTip(3000);return}$('#tip').innerHTML=`<b>💡 ${tr('Tip','Tip')} ${S.tut+1}/${TIPS.length}</b><p>${TIPS[S.tut]()}</p><button id="tipOk">${tr('Got it','I don hear')}</button>`;$('#tip').classList.remove('hide');$('#tipOk').onclick=()=>{$('#tip').classList.add('hide');S.tut++;save();nextTip(6000)}},d)}
+
+// ---------- Minimap ----------
+const mm=$('#mini'),mg=mm.getContext('2d');
+function drawMini(){const s=mm.width,sc=s/900,cx=S.p.x,cy=S.p.y;mg.setTransform(1,0,0,1,0,0);mg.fillStyle='#8bc34a';mg.fillRect(0,0,s,s);mg.save();mg.translate(s/2,s/2);mg.rotate(R.cam.yaw);mg.scale(sc,sc);mg.translate(-cx,-cy);
+ mg.fillStyle='#29b6f6';mg.fillRect(-2000,SEA,9000,2000);mg.fillRect(1400,-500,200,SEA+500);mg.fillRect(3000,-500,200,SEA+500);mg.fillStyle='#ffe082';mg.fillRect(-2000,SHORE,9000,SEA-SHORE);
+ mg.fillStyle='#555';mg.fillRect(-2000,RY,9000,RH);for(let d=0;d<3;d++)mg.fillRect(vroad(d),0,80,SHORE);
+ for(const b of B){mg.fillStyle=b.kind==='hospital'?'#e53935':b.kind==='park'?'#ffd400':b.roof;mg.fillRect(b.x,b.y,b.w,b.h)}
+ mg.fillStyle='#ffd400';for(const v of BUS){const [x,y]=busPos(v);mg.fillRect(x-25,y-12,50,24)}mg.restore();
+ mg.fillStyle='#fff';mg.strokeStyle='#111';mg.lineWidth=2;mg.save();mg.translate(s/2,s/2);mg.rotate(R.cam.yaw-PR.ry+Math.PI);mg.beginPath();mg.moveTo(0,-8);mg.lineTo(6,6);mg.lineTo(-6,6);mg.closePath();mg.fill();mg.stroke();mg.restore();
+ mg.fillStyle='#111';mg.font='900 11px system-ui';mg.textAlign='center';mg.fillText('N',s/2+Math.sin(R.cam.yaw)*(s/2-9),s/2-Math.cos(R.cam.yaw)*(s/2-9)+4)}
+
+let evTdummy=0;
 function hourTicks(){let g=0;while(Math.floor(S.t/60)>S.lh&&g++<400){S.lh++;hourTick()}}
 function adv(min){S.t+=min;hourTicks()}
 function hourTick(){const hr=S.lh%24;stat('hunger',-3);stat('energy',-1.5);if(S.hunger<=0){stat('energy',-3);stat('peace',-2)}
@@ -222,10 +293,8 @@ function dayTick(){const d=day(),over=d-S.rentDue;
  if(S.debt>0)stat('peace',-1);
  if(!S.homeless&&over>=7){if(S.home>0){S.home=0;S.rentDue=d+7;toast(tr('🚪 EVICTED! Landlord threw your things out. Back to face-me-I-face-you.','🚪 Landlord don pursue you! You don go back face-me-I-face-you.'))}else{S.homeless=true;toast(tr('🚪 EVICTED! You are now homeless — sleep at a danfo park.','🚪 Dem don pursue you comot! Go sleep for motor park.'))}stat('peace',-25);stat('respect',-10)}
  else if(!S.homeless&&over>=3)toast(tr('⚠️ Rent overdue! Landlord says pay or pack.','⚠️ Rent don pass! Landlord say pay or pack.'));fix();save()}
-function faint(){S.energy=25;const fee=Math.min(5000,S.money);pay(fee);adv(6*60);const h=HOMES[S.home];if(!S.homeless){const d=BY[h.b].door;S.p.x=d.x;S.p.y=d.y+20}
+function faint(){if(IN)leaveInterior(true);S.energy=25;const fee=Math.min(5000,S.money);pay(fee);adv(6*60);const h=HOMES[S.home];if(!S.homeless){const d=BY[h.b].door;S.p.x=d.x;S.p.y=d.y+20}
  toast(tr(`😵 You collapsed! Clinic bill ${N(fee)}.`,`😵 You faint! Clinic collect ${N(fee)}.`))}
-
-// ---------- UI helpers ----------
 let tT;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('on'),2800)}
 let cur=null;
 function panel(fn){cur=fn;$('#modal').classList.remove('hide');drawPanel()}
@@ -235,13 +304,18 @@ function drawPanel(){if(!cur)return;const P=cur();if(!P){closeModal();return}con
 function closeModal(){cur=null;$('#modal').classList.add('hide')}
 function statLine(){return `<p style="font-size:13px">💰 ${N(S.money)} · ⚡${S.energy|0} · 🍲${S.hunger|0} · ☮️${S.peace|0} · ⭐${S.respect|0}</p>`}
 const fmtT=()=>{const h=Math.floor(hour()),m=Math.floor(S.t%60);return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`};
-function hud(){if(!S||!S.look)return;const bar=(e,k)=>`<span class="b ${S[k]<25?'low':''}">${e}<s><i style="width:${S[k]}%"></i></s></span>`;
- $('#hud').innerHTML=`<span class="pill m">${N(S.money)}</span><span class="pill">${tr('Day','Day')} ${day()} · ${fmtT()} ${S.bo?'🕯️':nightF()>.5?'🌙':'☀️'}</span><span class="pill bars">${bar('⚡','energy')}${bar('🍲','hunger')}${bar('☮️','peace')}${bar('⭐','respect')}</span>`;
- const a=$('#act');if(near&&uiFree()){a.classList.remove('hide');a.textContent=(near.kind==='park'?'🚌 ':'🚪 ')+L(near.lab).split(' (')[0]}else a.classList.add('hide')}
-$('#act').onclick=()=>{if(near&&uiFree())interact()};
+// ---------- HUD ----------
+function hud(){if(!S||!S.look)return;const bar=(e,k,c)=>`<div class="st ${S[k]<25?'low':''}" title="${k}"><span>${e}</span><s><i style="width:${S[k]}%;background:${c}"></i></s></div>`;
+ $('#hl').innerHTML=`<div class="money">💰 ${N(S.money)}</div><div class="bars">${bar('⚡','energy','#fbc02d')}${bar('🍲','hunger','#ef6c00')}${bar('☮️','peace','#29b6f6')}${bar('⭐','respect','#ab47bc')}</div>`;
+ const nf=nightF();$('#clock').innerHTML=`<b>${fmtT()}</b> ${S.bo?'🕯️':nf>.5?'🌙':'☀️'}<small>${tr('Day','Day')} ${day()}</small>`;
+ $('#where').textContent=IN?'🚪 '+L(IN.b.lab).split(' (')[0]:'📍 '+L(DIST[distAt(S.p.x)].n)+(S.bo?' · ⚡'+tr('NEPA','NEPA'):'');
+ const a=$('#act');if(uiFree()&&(nearAct||near)){a.classList.remove('hide');a.textContent=nearAct?nearAct.act.l:(near.kind==='park'?'🚌 ':near.kind==='beach'?'🏖️ ':'🚪 ')+tr('Enter ','Enter ')+L(near.lab).split(' (')[0]}else a.classList.add('hide');
+ if(!IN)drawMini();$('#mini').style.visibility=IN?'hidden':'visible';
+ if(IN)R.setInteriorPower(S.bo&&!IN.b.gen&&!IN.sp.powered&&!genOn(),genOn())}
+$('#act').onclick=()=>{if(uiFree()&&(near||nearAct))interact()};
 
 // ---------- Locations ----------
-function interact(){const k=near.kind;({home:homeP,buka:bukaP,tech:workP,bank:bankP,market:marketP,club:clubP,park:parkP,worship:worshipP,beach:beachP,fuel:fuelP,studio:workP})[k](near)}
+function placePanel(near){const k=near.kind;({home:homeP,buka:bukaP,tech:workP,bank:bankP,market:marketP,club:clubP,park:parkP,worship:worshipP,beach:beachP,fuel:fuelP,studio:workP,hospital:hospitalP})[k](near)}
 const need=(e,h)=>S.energy>=e&&(h==null||S.hunger>=h);
 function homeP(b){panel(()=>{const isHome=!S.homeless&&HOMES[S.home].b===b.id,h=HOMES[S.home],acts=[];
  if(isHome){acts.push({l:tr('😴 Sleep till morning','😴 Sleep till morning'),s:S.bo?(S.fuel>=4?tr('Blackout: gen will use 4L fuel','Light no dey: gen go use 4L'):tr('Blackout & no fuel: hot night, poor rest','No light, no fuel: heat go worry you')):tr('Restore energy','Restore energy'),f:sleep});
@@ -282,8 +356,8 @@ function marketP(b){panel(()=>{const acts=[];GOODS.forEach((g,i)=>{const p=goodP
   if(S.inv[i]>0)acts.push({l:`${g[1]} ${tr('Sell','Sell')} 1 — ${N(sp)}`,alt:1,f:()=>{if(S.inv[i]>0){S.inv[i]--;earn(sp)}}})});
  return{em:'🛍️',title:L(b.lab),text:tr("Prices change every day. Buy low today, sell high another day.",'Price dey change every day. Buy cheap, sell when e cost.'),acts:workPActs(b).concat(acts)}})}
 function clubP(b){panel(()=>{const hr=hour(),open=hr>=21||hr<4;return{em:'🪩',title:L(b.lab),text:open?tr('The DJ is on fire. Who you be?','DJ dey burst brain. Who you be?'):tr('Opens 9pm – 4am.','E dey open 9pm – 4am.'),acts:[
- {l:tr('🎟️ Regular entry ','🎟️ Regular gate ')+N(10000),s:'+⭐5 +☮️6 −⚡15',dis:!open||S.money<10000||S.energy<15,f:()=>{if(pay(10000)){stat('respect',5);stat('peace',6);stat('energy',-15);adv(120);clubEvent()}}},
- {l:tr('🍾 VIP table ','🍾 VIP table ')+N(80000),s:'+⭐18 +☮️10 −⚡20',dis:!open||S.money<80000||S.energy<20,f:()=>{if(pay(80000)){stat('respect',18);stat('peace',10);stat('energy',-20);adv(180);clubEvent()}}}]}})}
+ {l:tr('🎟️ Regular entry ','🎟️ Regular gate ')+N(10000),s:'+⭐5 +☮️6 −⚡15',dis:!open||S.money<10000||S.energy<15,f:()=>{if(pay(10000)){stat('respect',5);stat('peace',6);stat('energy',-15);adv(120);S.clubT=S.t+180;clubEvent()}}},
+ {l:tr('🍾 VIP table ','🍾 VIP table ')+N(80000),s:'+⭐18 +☮️10 −⚡20',dis:!open||S.money<80000||S.energy<20,f:()=>{if(pay(80000)){stat('respect',18);stat('peace',10);stat('energy',-20);adv(180);S.clubT=S.t+240;clubEvent()}}}]}})}
 function clubEvent(){const r=Math.random();if(r<.15){earn(20000);toast(tr('💸 A celebrity sprayed you ₦20,000!','💸 Celebrity spray you ₦20,000!'))}else if(r<.28){pay(Math.min(S.money,15000));stat('peace',-10);toast(tr('📵 Your phone got "missing". Paid ₦15,000 to replace.','📵 Dem japa with your phone. ₦15k don go.'))}else if(r<.38){stat('respect',8);toast(tr('🎤 You got called on stage!','🎤 Dem call you enter stage!'))}}
 function parkP(b){panel(()=>{const from=b.d,acts=DIST.map((d,i)=>i===from?null:{l:`🚌 ${tr('Danfo to','Danfo go')} ${L(d.n)} — ${N(FARE[from][i])}`,s:tr('~40 min, squeeze inside','~40 min, squeeze body'),dis:S.money<FARE[from][i],f:()=>{if(pay(FARE[from][i])){adv(40);stat('energy',-4);const t=BY['park'+i].door;S.p.x=t.x;S.p.y=t.y+24;closeModal();toast('📍 '+L(d.n));return 'keep'}}}).filter(Boolean);
  if(S.homeless)acts.push({l:tr('🪑 Sleep on a bench','🪑 Sleep for bench'),s:'+⚡35 −☮️10',f:()=>{adv(6*60);stat('energy',35);stat('peace',-10)}});
@@ -301,7 +375,6 @@ const POOL=STREET.concat((typeof EVENTS!=='undefined'?EVENTS:[]).filter(e=>['las
 function streetEvent(ev){ev=ev||POOL[Math.floor(Math.random()*POOL.length)];
  panel(()=>({em:ev.emoji,title:tr('Street wahala!','Street wahala!'),text:ev.text[S.lang==='pg'?'pg':'en'],acts:ev.choices.map(c=>{const f=c.fx,m=f.m||0;return{l:c.text[S.lang==='pg'?'pg':'en'],s:fxs(f)+(m<0&&S.money<-m?' — '+tr("can't afford","you no get"):''),dis:m<0&&S.money<-m,f:()=>{if(m<0&&!pay(-m))return;if(m>0)earn(m);stat('energy',f.e);stat('peace',f.p);stat('respect',f.r);if(f.f)stat('peace',-f.f/2);adv(30);closeModal();return 'keep'}}})}))}
 const fxs=f=>[f.m?(f.m>0?'+':'−')+N(Math.abs(f.m)):'',f.e?`⚡${f.e>0?'+':''}${f.e}`:'',f.p?`☮️${f.p>0?'+':''}${f.p}`:'',f.r?`⭐${f.r>0?'+':''}${f.r}`:''].filter(Boolean).join(' ');
-
 // ---------- Phone ----------
 let tab='stats';
 function openPhone(t){if(t)tab=t;$('#phone').classList.remove('hide');drawPhone()}
@@ -310,21 +383,21 @@ $('#phClose').onclick=closePhone;$('#phoneBtn').onclick=()=>uiFree()&&openPhone(
 function drawPhone(){const T=[['stats','📊',tr('Stats','Stats')],['bank','🏦',tr('Bank','Bank')],['sapa','🎴','Sapa Challenge'],['set','⚙️',tr('Settings','Settings')]];
  $('#tabs').innerHTML=T.map(t=>`<button data-tab="${t[0]}" class="${tab===t[0]?'on':''}">${t[1]} ${t[2]}</button>`).join('');$('#tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;drawPhone()});
  $('#phTitle').textContent=`📱 ${S.look.name} · ${fmtT()}`;const bd=$('#phBody');
- if(tab==='stats'){const h=HOMES[S.home],nw=S.money+S.save-S.debt;bd.innerHTML=`<table><tr><td>💰 ${tr('Cash','Cash')}</td><td>${N(S.money)}</td></tr><tr><td>🏦 ${tr('Savings','Savings')}</td><td>${N(S.save)}</td></tr><tr><td>📝 ${tr('Debt','Debt')}</td><td>${N(S.debt)}</td></tr><tr><td>📈 ${tr('Net worth','Net worth')}</td><td>${nw<0?'−':''}${N(Math.abs(nw))}</td></tr><tr><td>🏠 ${tr('Home','House')}</td><td>${S.homeless?tr('Homeless','No house'):L(h.n)}</td></tr><tr><td>📅 ${tr('Rent paid until','Rent pay reach')}</td><td>${tr('Day','Day')} ${S.rentDue}</td></tr><tr><td>⛽ ${tr('Fuel','Fuel')}</td><td>${S.fuel} L</td></tr><tr><td>💡 NEPA</td><td>${S.bo?tr('Blackout','No light'):tr('Light dey','Light dey')}</td></tr>
+ if(tab==='stats'){const h=HOMES[S.home],nw=S.money+S.save-S.debt;bd.innerHTML=`<table><tr><td>💰 ${tr('Cash','Cash')}</td><td>${N(S.money)}</td></tr><tr><td>🏦 ${tr('Savings','Savings')}</td><td>${N(S.save)}</td></tr><tr><td>📝 ${tr('Debt','Debt')}</td><td>${N(S.debt)}</td></tr><tr><td>📈 ${tr('Net worth','Net worth')}</td><td>${nw<0?'−':''}${N(Math.abs(nw))}</td></tr><tr><td>🏠 ${tr('Home','House')}</td><td>${S.homeless?tr('Homeless','No house'):L(h.n)}</td></tr><tr><td>📅 ${tr('Rent paid until','Rent pay reach')}</td><td>${tr('Day','Day')} ${S.rentDue}</td></tr><tr><td>🏥 ${tr('Times hit by vehicles','Times wey motor jam you')}</td><td>${S.deaths|0}</td></tr><tr><td>⛽ ${tr('Fuel','Fuel')}</td><td>${S.fuel} L</td></tr><tr><td>💡 NEPA</td><td>${S.bo?tr('Blackout','No light'):tr('Light dey','Light dey')}</td></tr>
   ${Object.keys(CAR).map(k=>`<tr><td>${CAR[k].em} ${L(CAR[k].n)}</td><td>${L(CAR[k].t[S.car[k].lv])} · ${S.car[k].xp}XP</td></tr>`).join('')}
   ${['energy','hunger','peace','respect'].map(k=>`<tr><td>${k}</td><td>${S[k]|0}/100</td></tr>`).join('')}</table><p style="font-size:12px">${tr('Tip: work at Tech Hub (Yaba), Bank (VI), Market (Yaba) or Studio (Lekki). Danfo parks connect districts.','Tip: work for Tech Hub (Yaba), Bank (VI), Market (Yaba) or Studio (Lekki). Motor park go carry you anywhere.')}</p>`}
  else if(tab==='bank')bd.innerHTML=`<div class="card"><h2>🏦 ${N(S.save)}</h2><p>${tr('Savings','Savings')} · ${tr('Debt','Debt')} ${N(S.debt)}</p><p style="font-size:13px">${tr('Deposits, withdrawals and loans are done in person at Gidi Trust Bank (Victoria Island). Interest is applied weekly.','Go Gidi Trust Bank for VI to save, collect or borrow. Interest dey enter every week.')}</p></div>`;
  else if(tab==='sapa')bd.innerHTML=`<iframe id="sapaFrame" src="challenge/index.html" title="Sapa Challenge"></iframe>`;
- else{bd.innerHTML=`<div class="acts"><button id="lng">🌐 ${tr('Language: English → switch to Pidgin','Language: Pidgin → switch to English')}</button><button id="sv">💾 ${tr('Save now','Save am now')}</button><button id="rs" class="alt">🗑️ ${tr('Reset game (new character)','Start again (new person)')}</button></div><p style="font-size:12px">${tr('Single-player. Saved on this device only. No chat, no real-money purchases.','Na only you dey play. E save for this phone only. No chat, no real money.')}</p>`;
-  $('#lng').onclick=()=>{S.lang=S.lang==='pg'?'en':'pg';save();drawPhone();hud()};$('#sv').onclick=()=>{save();toast(tr('Saved ✅','E don save ✅'))};
-  $('#rs').onclick=()=>{if(confirm(tr('Delete your save and start over?','You sure say make we clear everything?'))){localStorage.removeItem(SAVE);const lang=S.lang;S={lang};closePhone();creator()}}}}
-
+ else{bd.innerHTML=`<div class="acts"><p><b>🎮 ${tr('Graphics','Graphics')}</b></p><div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?tr('Low (fast)','Low (fast)'):q==='med'?tr('Medium','Medium'):tr('High','High')}</button>`).join('')}</div><button id="snd">${SET.snd?'🔊 '+tr('Sound: ON','Sound: ON'):'🔇 '+tr('Sound: OFF','Sound: OFF')}</button><button id="lng">🌐 ${tr('Language: English → switch to Pidgin','Language: Pidgin → switch to English')}</button><button id="sv">💾 ${tr('Save now','Save am now')}</button><button id="rs" class="alt">🗑️ ${tr('Reset game (new character)','Start again (new person)')}</button></div><p style="font-size:12px">${tr('Single-player. Saved on this device only. No chat, no real-money purchases.','Na only you dey play. E save for this phone only. No chat, no real money.')}</p>`;
+  $('#lng').onclick=()=>{S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();save();drawPhone();hud()};bd.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);drawPhone()});$('#snd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.on(SET.snd);drawPhone()};$('#sv').onclick=()=>{save();toast(tr('Saved ✅','E don save ✅'))};
+  $('#rs').onclick=()=>{if(confirm(tr('Delete your save and start over?','You sure say make we clear everything?'))){localStorage.removeItem(SAVE);const lang=S.lang;S={lang};if(IN)leaveInterior(true);closePhone();creator()}}}}
 // ---------- Character creator ----------
+
 const SKINS=['#3b2219','#5a3825','#7a4b2e','#a0673f','#c68b59','#e0ac69'],OUTS=['#0b7a3e','#e53935','#1e88e5','#fdd835','#8e24aa','#fb8c00','#212121','#ffffff'];
 const HAIRS=[['Low cut','Low cut'],['Afro','Afro'],['Braids','Braids'],['Cap','Face cap'],['Headwrap','Gele/wrap']];
 let ck={name:'',skin:SKINS[2],out:OUTS[0],hair:0,body:0},cbg='nepo';
-function creator(){$('#creator').classList.remove('hide');$('#hud').classList.add('hide');$('#phoneBtn').classList.add('hide');const cr=$('#cr');
- cr.innerHTML=`<div class="card"><h2>🇳🇬 Sapa Survival: <span style="color:#0b7a3e">Lagos World</span></h2><p>${tr('Create your Lagosian. Hustle, chop, pay rent, survive NEPA.','Create your Lagos person. Hustle, chop, pay rent, survive NEPA.')}</p>
+function creator(){$('#title').classList.add('hide');$('#creator').classList.remove('hide');$('#hud').classList.add('hide');$('#phoneBtn').classList.add('hide');const cr=$('#cr');
+ cr.innerHTML=`<div class="card"><h2>🇳🇬 Sapa Survival <span style="color:#0b7a3e">3D</span></h2><p>${tr('Create your Lagosian. Hustle, chop, pay rent, survive NEPA.','Create your Lagos person. Hustle, chop, pay rent, survive NEPA.')}</p>
  <canvas id="pv" width="240" height="150" style="width:120px;height:75px;display:block;margin:4px auto"></canvas>
  <input id="nm" maxlength="14" placeholder="${tr('Your name','Your name')}" value="${ck.name}">
  <p>${tr('Skin tone','Skin colour')}</p><div class="row" id="sk">${SKINS.map(c=>`<button class="sw ${c===ck.skin?'on':''}" style="background:${c}" data-v="${c}"></button>`).join('')}</div>
@@ -337,17 +410,39 @@ function creator(){$('#creator').classList.remove('hide');$('#hud').classList.ad
  $('#nm').oninput=e=>ck.name=e.target.value;
  [['sk','skin'],['oc','out'],['hr','hair'],['bdy','body']].forEach(([id,k])=>$('#'+id).querySelectorAll('button').forEach(b=>b.onclick=()=>{ck[k]=k==='hair'||k==='body'?+b.dataset.v:b.dataset.v;$('#'+id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));dp()}));
  $('#bgc').querySelectorAll('button').forEach(b=>b.onclick=()=>{cbg=b.dataset.v;$('#bgc').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
- $('#clang').onclick=()=>{S=S||{};S.lang=S.lang==='pg'?'en':'pg';creator()};
+ $('#clang').onclick=()=>{S=S||{};S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();creator()};
  $('#go').onclick=()=>{const name=(ck.name||'').replace(/[<>&"']/g,'').trim().slice(0,14)||'Tunde';S=fresh({...ck,name},cbg);fix();save();start();toast(cbg==='nepo'?tr('Daddy\'s money landed. Don\'t waste it!','Papa money don land. No waste am!'):tr('Lapo loan landed. Repay at the bank in VI!','Lapo loan don land. Pay back for bank for VI!'))}}
-function start(){$('#creator').classList.add('hide');$('#hud').classList.remove('hide');$('#phoneBtn').classList.remove('hide');lastDist=-1;hud()}
+function start(){$('#creator').classList.add('hide');$('#title').classList.add('hide');R.setLook(S.look);DEAD=null;$('#hud').classList.remove('hide');$('#phoneBtn').classList.remove('hide');lastDist=-1;hud();if(S.tut<TIPS.length)nextTip(1200)}
 
-// ---------- Boot ----------
-function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;Z=cl(Math.min(W,H)/430,.85,1.6)}
-addEventListener('resize',resize);resize();
+// ---------- Title / loading / boot ----------
+function showTitle(){const has=load();const t=$('#title');t.classList.remove('hide');
+ t.innerHTML=`<div class="tcard"><div class="logo">SAPA<br>SURVIVAL<span>3D LAGOS LIFE</span></div><p>${tr('Hustle in Yaba, VI & Lekki. Pay rent. Survive NEPA. Dodge danfo.','Hustle for Yaba, VI & Lekki. Pay rent. Survive NEPA. Dodge danfo.')}</p>
+ ${has?`<button id="tCont">▶ ${tr('Continue','Continue')} — ${S.look.name}, ${tr('Day','Day')} ${day()}</button>`:''}<button id="tNew" class="${has?'alt':''}">🆕 ${tr('New life','New life')}</button>
+ <div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?'⚡ Low':q==='med'?'Medium':'✨ High'}</button>`).join('')}</div>
+ <div class="row"><button class="opt" id="tSnd">${SET.snd?'🔊':'🔇'} ${tr('Sound','Sound')}</button><button class="opt" id="tLng">🌐 ${tr('Pidgin','English')}</button></div><p class="sm">${tr('Single-player · saves on this device · no login','Na only you · e save for this phone · no login')}</p></div>`;
+ if(has)$('#tCont').onclick=()=>{AU.init();start()};
+ $('#tNew').onclick=()=>{AU.init();if(has&&!confirm(tr('Start a new life? Your current save will be replaced when you enter Lagos.','Start new life? Your old save go clear when you enter Lagos.')))return;const lang=(S&&S.lang)||SET.lang;S={lang};creator()};
+ t.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);showTitle()});
+ $('#tSnd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.on(SET.snd);showTitle()};$('#tLng').onclick=()=>{SET.lang=SET.lang==='pg'?'en':'pg';if(S)S.lang=SET.lang;saveSet();showTitle()}}
+const prog=p=>{$('#lbar').style.width=p+'%';$('#lpct').textContent=Math.round(p)+'%';return new Promise(r=>setTimeout(r,16))};
 let last=performance.now(),hudT=0;
-function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(S&&S.look){update(dt);render();hudT+=dt;if(hudT>.25){hudT=0;hud()}}requestAnimationFrame(loop)}
-if(load())start();else{S=null;creator()}
-requestAnimationFrame(loop);
-addEventListener('visibilitychange',()=>document.hidden&&save());
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;tm+=dt;
+ try{worldTick(dt);const playing=S&&S.look&&!vis('#title');if(playing)update(dt);
+  const title=!playing;const pp=IN?{x:IN.p.x,z:IN.p.z}:(S&&S.p&&S.look?{x:S.p.x*K,z:S.p.y*K}:{x:BY.tech.door.x*K,z:(RY+50)*K});
+  let mk=null;if(playing&&!DEAD){if(IN&&nearAct)mk=[nearAct.x,nearAct.z,2.3];else if(near)mk=[near.door.x*K,(near.door.y+4)*K,2.4]}
+  R.frame(dt,{tm,p:{...pp,ry:PR.ry,ph:PR.ph,moving:PR.moving},h:S&&S.look?hour():16.8,nf:S&&S.look?nightF():0,bo:S&&S.look?S.bo:0,dead:DEAD,marker:mk,title:title&&!vis('#creator')||(title&&!(S&&S.look))});
+  bubTick(dt);AU.tick();if(playing){hudT+=dt;if(hudT>.25){hudT=0;hud()}}
+  fpsN++;}catch(e){console.error(e)}requestAnimationFrame(loop)}
+let fpsN=0;
+async function boot(){try{await prog(20);await R.init(cv,SET.q);await prog(45);await R.build({B,WW,WH,SEA,RY,RH,PALMS,LAMPS,NPC,BUS,busPos,drawStatic,GEN},prog);await prog(100);
+ setTimeout(()=>{$('#load').classList.add('hide');showTitle()},200);requestAnimationFrame(loop)}catch(e){console.error(e);$('#lmsg').textContent='Could not start 3D: '+e.message+'. Try another browser or enable WebGL.'}}
+addEventListener('visibilitychange',()=>document.hidden&&S&&S.look&&save());
 // test/debug hooks
-window.G={get S(){return S},adv,blackout,streetEvent,interact,openPhone,tp:id=>{const d=BY[id].door;S.p.x=d.x;S.p.y=d.y+10},get near(){return near&&near.id},B:BY};
+window.G={get S(){return S},adv,blackout,streetEvent,interact,openPhone,R,
+ tp:id=>{if(IN)leaveInterior(true);const d=BY[id].door;S.p.x=d.x;S.p.y=d.y+10},get near(){return near&&near.id},get nearAct(){return nearAct&&nearAct.act.l},get IN(){return IN&&IN.b.id},get DEAD(){return DEAD},B:BY,BUS,
+ setHour:h=>{S.t=Math.floor(S.t/1440)*1440+h*60+(h*60<S.t%1440?1440:0);S.lh=Math.floor(S.t/60)},
+ enter:id=>{if(IN)leaveInterior(true);const d=BY[id].door;S.p.x=d.x;S.p.y=d.y+10;near=BY[id];interact()},
+ goAct:sub=>{if(!IN)return false;const a=IN.acts.find(a=>a.act.l.includes(sub));if(!a)return false;const dx=-a.x,dz=IN.sp.d/2-1.2-a.z,m=Math.hypot(dx,dz)||1,k=Math.min(a.r*.55,m);IN.p.x=a.x+dx/m*k;IN.p.z=a.z+dz/m*k;return true},dbg:()=>({uiFree:uiFree(),fading,modal:vis('#modal'),phone:vis('#phone'),death:vis('#death'),IN:IN&&IN.b.id,p:IN&&IN.p,na:nearAct&&nearAct.act.l}),
+ danfo:()=>{const v=BUS.find(v=>v.h&&!v.ok&&v.lane===0);S.p.x=600;S.p.y=RY+RH*.27;v.x=S.p.x-Math.sign(v.base||v.sp)*260;v.cur=Math.abs(v.base||v.sp);return true},
+ get fps(){return fpsN},info:()=>R.info()};
+boot();

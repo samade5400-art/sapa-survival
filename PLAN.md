@@ -64,3 +64,9 @@ Plain HTML/CSS/JS with no build step and no framework. Files: `index.html`, `sty
 
 ## v2 — Lagos World (Oct 2026)
 Root `index.html` + `world.js` + `world.css`: 2D top-down canvas life-sim across Yaba, VI, Lekki. v1 card game moved to `challenge/` (Sapa Challenge, opened from in-game phone); `events.js` shared.
+
+## v3 — 3D Lagos Life (Three.js r160 via importmap, no build step)
+- `r3d.js`: renderer (low-poly procedural city, instanced palms/lamps, merged-geometry danfos/okadas, water shader, sky/sun/moon/stars, shadows, interiors + furniture).
+- `world.js`: game logic (ES module). Save key `sapa_world_v3`; v2 saves (`sapa_world_v2`) are migrated automatically.
+- New: vehicle collisions (death → General Hospital respawn with bill, death counter), zebra crossings (drivers stop), honk + brake, walkable interiors, title/loading screens, WebAudio SFX, speech bubbles, tutorial, minimap, graphics quality setting.
+- Test: `node /workspace/t/v3.js [url]`.
