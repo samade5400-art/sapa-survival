@@ -102,3 +102,19 @@ body.lbx #hud,body.lbx #act,body.lbx #phoneBtn,body.lbx #tip,body.lbx #toast,bod
 .nbub{background:#fffde7!important;border-color:#0b7a3e!important}
 .row.sw .opt{width:32px;height:28px;padding:0}
 button.online{background:#111!important;color:#69f0ae!important}button.online small{color:#b9f6ca}
+
+#hbtns{position:fixed;right:10px;bottom:calc(150px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;z-index:6}
+#hbtns button{width:50px;height:50px;border-radius:50%;border:2px solid #111;background:#fff;font-size:22px;box-shadow:0 3px 0 #111}
+#runBtn.on{background:#ffd400}
+#gpsI{margin-top:4px;background:#111;color:#fff;border-radius:10px;padding:3px 8px;font:800 12px system-ui;text-align:center}#gpsI .wa{display:inline-block;font-style:normal}
+#ride{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom));background:#111d;color:#fff;border-radius:14px;padding:8px 10px;display:flex;gap:8px;align-items:center;z-index:7;font:800 13px system-ui;max-width:94vw}
+#ride button{border:0;border-radius:10px;background:#ffd400;font-size:18px;padding:6px 10px}
+#drive{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:flex-end;padding:0 12px;z-index:7;pointer-events:none}
+#drive button{pointer-events:auto;width:64px;height:64px;border-radius:16px;border:2px solid #111;background:#fffd;font-size:22px;margin:3px;touch-action:none;user-select:none;-webkit-user-select:none}
+#drive .dr{display:grid;grid-template-columns:auto auto}#dG{background:#7c4!important}#dB{background:#f55!important}
+#spd{background:#111;color:#ffd400;font:900 16px system-ui;padding:6px 12px;border-radius:10px;margin-bottom:8px}
+#map{z-index:30;background:#123}#mapc{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#mtop{position:absolute;top:env(safe-area-inset-top);left:0;right:0;display:flex;gap:8px;align-items:center;padding:8px;background:#111c;color:#fff;font:800 14px system-ui}
+#mtop span{flex:1;font-size:11px;opacity:.85}#mtop button{border:0;border-radius:10px;background:#ffd400;font-size:16px;padding:6px 10px}
+#mlist{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+#mlist button{flex:none;border:2px solid #111;border-radius:10px;background:#fff;font:800 12px system-ui;padding:7px 9px}

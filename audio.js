@@ -55,6 +55,9 @@ const A={ctx:null,cur:null,club:0,dist:null,loops:{},T:{},
   this.AM={crowd:mk('bandpass',700,.6,.14),traffic:mk('lowpass',180,.7,.22),wind:mk('bandpass',900,2,.1),waves:mk('lowpass',650,.5,.2)};
   const lfo=(f,dest,amt,base)=>{const o=c.createOscillator(),g=c.createGain();o.frequency.value=f;g.gain.value=amt;o.connect(g);g.connect(dest);o.start();dest.value=base};
   lfo(.11,this.AM.waves.out.gain,.14,.18);lfo(.07,this.AM.wind.fl.frequency,500,900);lfo(.3,this.AM.crowd.out.gain,.04,.12)},
+ setRain(v){const c=this.ctx;if(!c)return;if(!this.RN){const s=c.createBufferSource();s.buffer=this.nb;s.loop=true;const f=c.createBiquadFilter();f.type='highpass';f.frequency.value=1400;const f2=c.createBiquadFilter();f2.type='lowpass';f2.frequency.value=7000;const g=c.createGain();g.gain.value=0;s.connect(f);f.connect(f2);f2.connect(g);g.connect(this.amb);s.start();this.RN={g,v:0}}
+  if(Math.abs(this.RN.v-v)>.02){this.RN.v=v;this.RN.g.gain.setTargetAtTime(v*.32,c.currentTime,.6)}},
+ thunder(k=1){const c=this.ctx;if(!c||c.state!=='running')return;const t=c.currentTime+.3+Math.random()*1.2,s=c.createBufferSource();s.buffer=this.nb;const f=c.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(400,t);f.frequency.exponentialRampToValueAtTime(60,t+3);const g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.55*k,t+.08);g.gain.exponentialRampToValueAtTime(.001,t+3.2);s.connect(f);f.connect(g);g.connect(this.amb);s.start(t);s.stop(t+3.4)},
  setDistrict(d){if(!this.ctx||this.dist===d)return;this.dist=d;const t=this.ctx.currentTime,G={yaba:{crowd:1,traffic:.5,wind:0,waves:0},vi:{crowd:.35,traffic:1,wind:.8,waves:.1},lekki:{crowd:.2,traffic:.35,wind:.5,waves:1},in:{crowd:.12,traffic:.12,wind:0,waves:0},title:{crowd:.4,traffic:.3,wind:.2,waves:.2}}[d]||{};
   for(const k in this.AM)this.AM[k].g.gain.setTargetAtTime(G[k]||0,t,.8)},
  tick(){const c=this.ctx;if(!c||c.state!=='running')return;const now=c.currentTime;

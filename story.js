@@ -1,4 +1,4 @@
-// Sapa Survival v4 — Story mode "From Face-Me-I-Face-You to Lekki": chapters, quests, dialogue trees, cutscene, endings.
+// Naija Republic v5 — Story mode "From Face-Me-I-Face-You to Lekki": chapters, quests, dialogue trees, cutscene, endings.
 export function makeStory(G){
 const $=s=>document.querySelector(s);const tr=(e,p)=>G.tr(e,p),L=a=>Array.isArray(a)?tr(a[0],a[1]):(typeof a==='function'?a():a);
 const st=()=>G.S&&G.S.story&&G.S.story.on?G.S.story:null;const F=()=>st().F;const rel=(k,d)=>{const s=st();if(s)s.rel[k]=Math.max(-5,Math.min(10,(s.rel[k]||0)+d))};
@@ -78,7 +78,7 @@ const CH=[
  {n:['Blow','Blow'],o:[{id:'promo',t:['Get promoted at work','Collect promotion for work'],g:jobLoc,d:()=>Object.values(G.S.car).some(c=>c.lv>=1)},{id:'kwilox',t:['Celebrate at Kwilox Club (9pm–4am)','Go flex for Kwilox (9pm–4am)'],g:'club',d:()=>F().kwilox},{id:'uncle',t:["Answer Uncle Bayo's call","Pick Uncle Bayo call"],g:null,d:()=>F().uncle},{id:'studio',opt:1,t:['(Optional) Help DJ Spinz at Lekki Vibes Studio','(Optional) Help DJ Spinz for Lekki Vibes Studio'],g:'studio',d:()=>F().studio},{id:'amaka',opt:1,t:['(Optional) Hang out with Amaka (Tech Hub by day)','(Optional) Hang with Amaka (Tech Hub for day)'],g:'tech',d:()=>F().amaka2}]},
  {n:['Big Decision','Big Decision'],o:[{id:'decide',t:['Talk to Tunde about your future','Talk to Tunde about your future'],g:homeB,d:()=>!!st().path},
   {id:'flat',p:'boss',t:['Move into a Lekki Phase 1 flat','Enter Lekki Phase 1 flat'],g:'flat',d:()=>G.S.home===2},{id:'vip',p:'boss',t:['Throw a VIP party at Kwilox','Do VIP party for Kwilox'],g:'club',d:()=>F().vip},
-  {id:'ielts',p:'japa',t:['Pay for IELTS at Yabacon Tech Hub (₦120,000)','Pay IELTS for Yabacon Tech Hub (₦120,000)'],g:'tech',d:()=>F().ielts},{id:'pof',p:'japa',t:()=>tr(`Proof of funds: ₦800,000 in savings (${G.N(G.S.save)})`,`Proof of funds: ₦800,000 for savings (${G.N(G.S.save)})`),g:'bank',d:()=>G.S.save>=800000||F().flew},{id:'fly',p:'japa',t:['Catch the airport bus at VI Danfo Park','Enter airport bus for VI Motor Park'],g:'park1',d:()=>F().flew},
+  {id:'ielts',p:'japa',t:['Pay for IELTS at Yabacon Tech Hub (₦120,000)','Pay IELTS for Yabacon Tech Hub (₦120,000)'],g:'tech',d:()=>F().ielts},{id:'pof',p:'japa',t:()=>tr(`Proof of funds: ₦800,000 in savings (${G.N(G.S.save)})`,`Proof of funds: ₦800,000 for savings (${G.N(G.S.save)})`),g:'bank',d:()=>G.S.save>=800000||F().flew},{id:'fly',p:'japa',t:['Fly out from the Japa gate at Murtala Airport (Ikeja)','Comot from Japa gate for Murtala Airport (Ikeja)'],g:'airport',d:()=>F().flew},
   {id:'bus',p:'village',t:['Take the bus home from Yaba Park','Enter bus go village for Yaba Park'],g:'park0',d:()=>F().home}]}];
 const objs=()=>{const s=st();return CH[s.ch-1].o.filter(o=>!o.p||o.p===s.path)};
 const cur=()=>{const s=st();if(!s||s.ending&&s.ch>5)return null;return objs().find(o=>!o.opt&&!o.d())||null};
@@ -89,11 +89,11 @@ function check(){const s=st();if(!s||s.ending)return;
 function chapterCard(){const s=st();const c=$('#chap');c.innerHTML=`<small>${tr('Chapter','Chapter')} ${s.ch}</small><b>${L(CH[s.ch-1].n)}</b>`;c.classList.remove('hide');c.classList.remove('go');void c.offsetWidth;c.classList.add('go');G.AU.coin();setTimeout(()=>c.classList.add('hide'),3200)}
 // ---------------- cutscene ----------------
 let cine=null;
-function intro(done){const pk=G.BY.park0.door,K=G.K,px=pk.x*K,pz=(pk.y+20)*K;G.S.t=Math.floor(G.S.t/1440)*1440+6.5*60;G.S.lh=Math.floor(G.S.t/60);
- const shots=[{a:[px+40,30,pz+70],b:[px+10,22,pz+40],l:[px,0,pz-10],d:5,line:['nar',["Lagos. Eko o ni baje. 6:30am, Monday.","Lagos. Eko o ni baje. 6:30am, Monday."]]},
-  {a:[px-30,6,pz+12],b:[px-8,4,pz+8],l:[px-2,1.5,pz-3],d:4.5,line:['cond',["Yaba! Yaba! Last bus stop! Everybody comot! Mind your head!","Yaba! Yaba! Last bus stop! Everybody comot! Mind your head!"]]},
-  {a:[px+4,2.6,pz+7],b:[px+1.5,2.1,pz+4.2],l:[px,1.4,pz],d:4,line:['mum',["My child, Lagos is not easy. Remember where you come from. I'm praying for you every day. ₦50,000 is all we have — use it well. — Mama","My pikin, Lagos no easy. Remember where you come from. I dey pray for you every day. Na ₦50,000 we get — use am well. — Mama"]]},
-  {a:[px+1.5,2.1,pz+4.2],b:[px-3,6,pz+10],l:[px,1.4,pz],d:4,line:['tunde',["(text) Welcome to Lagos!!! My room is near Mama Shitta's buka in Yaba. Find me, I've cleared space for you on the mattress. 😂","(text) Welcome to Lagos!!! My room dey near Mama Shitta buka for Yaba. Find me, I don clear space for you for mattress. 😂"]]}];
+function intro(done){const pk=G.BY.park0.door,K=G.K,px=pk.x*K,pz=(pk.y-24)*K;G.S.t=Math.floor(G.S.t/1440)*1440+6.5*60;G.S.lh=Math.floor(G.S.t/60);
+ const shots=[{a:[px+40,30,pz-70],b:[px+10,22,pz-40],l:[px,0,pz+10],d:5,line:['nar',["Lagos. Eko o ni baje. 6:30am, Monday.","Lagos. Eko o ni baje. 6:30am, Monday."]]},
+  {a:[px-30,6,pz-12],b:[px-8,4,pz-8],l:[px-2,1.5,pz+3],d:4.5,line:['cond',["Yaba! Yaba! Last bus stop! Everybody comot! Mind your head!","Yaba! Yaba! Last bus stop! Everybody comot! Mind your head!"]]},
+  {a:[px+4,2.6,pz-7],b:[px+1.5,2.1,pz-4.2],l:[px,1.4,pz],d:4,line:['mum',["My child, Lagos is not easy. Remember where you come from. I'm praying for you every day. ₦50,000 is all we have — use it well. — Mama","My pikin, Lagos no easy. Remember where you come from. I dey pray for you every day. Na ₦50,000 we get — use am well. — Mama"]]},
+  {a:[px+1.5,2.1,pz-4.2],b:[px-3,6,pz-10],l:[px,1.4,pz],d:4,line:['tunde',["(text) Welcome to Lagos!!! My room is near Mama Shitta's buka in Yaba. Find me, I've cleared space for you on the mattress. 😂","(text) Welcome to Lagos!!! My room dey near Mama Shitta buka for Yaba. Find me, I don clear space for you for mattress. 😂"]]}];
  document.body.classList.add('lbx');$('#cine').classList.remove('hide');let i=-1,t0=0;
  const next=()=>{i++;if(i>=shots.length){end();return}const s=shots[i];t0=performance.now();cine={s,get k(){return Math.min(1,(performance.now()-t0)/1000/s.d)}};const w=WHO[s.line[0]];
   $('#cine').innerHTML=`<div class="cl"><div class="dwho" style="background:${w[2]}">${w[0]} ${w[1]}</div><div class="dtx">${L(s.line[1])}</div><div class="dch"><button id="cNext">${i<shots.length-1?tr('Next ▶','Next ▶'):tr('Start ▶','Start ▶')}</button><button id="cSkip" class="alt">${tr('Skip intro ⏭','Skip ⏭')}</button></div></div>`;
@@ -113,14 +113,14 @@ function ending(k){const s=st();if(!s||s.ending)return;s.ending=k;s.ch=6;G.save(
  const o=$('#ending');o.classList.remove('hide');const days=G.day();
  o.innerHTML=`<div class="ecard"><div class="em">${e[0]}</div><small>${tr('ENDING','ENDING')}</small><h1>${L(e[1])}</h1><p>${L(e[2])}${extra}</p>
  <p class="sm">${G.S.look.name} · ${tr('Day','Day')} ${days} · ${tr('Net worth','Net worth')} ${nw()<0?'−':''}${G.N(Math.abs(nw()))} · 🚌×${G.S.deaths|0}</p>
- <div class="credits"><b>${tr('Created by','Created by')} Samuel Ade (@SamAdego)</b><br><small>${tr('Music & sounds generated live in your browser. Thanks for playing!','Music & sound dey generate for your browser. Thank you for playing!')}</small></div>
+ <div class="credits"><b>${tr('A game by','A game by')} Naija Republic</b><br><small>${tr('Music & sounds generated live in your browser. Thanks for playing!','Music & sound dey generate for your browser. Thank you for playing!')}</small></div>
  <button id="eShare">📤 ${tr('Share my ending','Share my ending')}</button><button id="eCont" class="alt">🌍 ${tr('Continue in free roam','Continue free roam')}</button></div>`;
  $('#eShare').onclick=()=>share(k);$('#eCont').onclick=()=>{o.classList.add('hide');G.hud()}}
 function card(k){const c=document.createElement('canvas');c.width=1080;c.height=1350;const g=c.getContext('2d'),e=END[k];const gr=g.createLinearGradient(0,0,0,1350);gr.addColorStop(0,'#ffd400');gr.addColorStop(1,'#0b7a3e');g.fillStyle=gr;g.fillRect(0,0,1080,1350);
  g.fillStyle='#111';g.fillRect(60,60,960,1230);g.fillStyle='#ffd400';g.textAlign='center';g.font='900 90px system-ui';g.fillText('SAPA SURVIVAL',540,200);g.font='900 40px system-ui';g.fillStyle='#fff';g.fillText('FROM FACE-ME-I-FACE-YOU TO LEKKI',540,260);
  g.font='200px system-ui';g.fillText(e[0],540,520);g.fillStyle='#ffd400';g.font='900 76px system-ui';g.fillText(L(e[1]),540,660);g.fillStyle='#fff';g.font='700 44px system-ui';g.fillText(`${G.S.look.name} · Day ${G.day()}`,540,760);g.fillText(`Net worth ${G.N(nw())}`,540,830);g.fillText(`Hit by danfo: ${G.S.deaths|0}×`,540,900);
- g.font='700 36px system-ui';g.fillStyle='#ffd400';g.fillText('Created by Samuel Ade (@SamAdego)',540,1120);g.fillStyle='#bbb';g.fillText('samade5400-art.github.io/sapa-survival',540,1190);return c}
-async function share(k){const c=card(k),txt=tr(`I got the "${L(END[k][1])}" ending in Sapa Survival 3D! 🇳🇬`,`I don reach "${L(END[k][1])}" ending for Sapa Survival 3D! 🇳🇬`)+' https://samade5400-art.github.io/sapa-survival/';
+ g.font='700 36px system-ui';g.fillStyle='#ffd400';g.fillText('A game by Naija Republic',540,1120);g.fillStyle='#bbb';g.fillText('Play free in your browser',540,1190);return c}
+async function share(k){const c=card(k),txt=tr(`I got the "${L(END[k][1])}" ending in Naija Republic: Sapa Survival! 🇳🇬`,`I don reach "${L(END[k][1])}" ending for Naija Republic: Sapa Survival! 🇳🇬`)+' '+location.origin+location.pathname;
  try{const b=await new Promise(r=>c.toBlob(r,'image/png'));const f=new File([b],'sapa-ending.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],text:txt});return}}catch(e){}
  const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='sapa-ending.png';a.click();try{navigator.clipboard&&navigator.clipboard.writeText(txt)}catch(e){}G.toast(tr('Share card downloaded ✅','Share card don download ✅'))}
 // ---------------- public API ----------------
@@ -145,9 +145,9 @@ const S={tense:0,
   if(b.id==='tech'&&s.ch>=2){const h=G.hour();if(h>=8&&h<19)add('amaka',-5,1.6,Math.PI/2,{l:tr('💬 Talk to Amaka','💬 Yarn with Amaka'),f:()=>{if(!s.F.amaka){talk('a_meet',()=>{s.F.amaka=1})}else talk('a_2',()=>{s.F.amaka2=1;check()})}})}
   if(b.id==='club'&&s.F.amaka)add('amaka',3.5,3.6,Math.PI,{l:tr('💬 Dance with Amaka','💬 Dance with Amaka'),f:()=>{rel('amaka',1);G.stat('peace',5);G.toast('💃🏾 +☮️5');s.F.amaka2=1;check()}});
   if(b.id==='studio'&&s.ch>=4&&!s.F.studio)add('dj',2.6,-.6,0,{l:tr('💬 Talk to DJ Spinz','💬 Talk to DJ Spinz'),f:()=>talk('d_meet',check)});
+  if(b.id==='airport'&&s.ch===5&&s.path==='japa'&&!s.F.flew)sp.items.push({t:'talk',x:5.6,z:-.2,r:1.8,act:{l:tr('✈️ Japa gate → Canada','✈️ Japa gate → Canada'),f:()=>{if(!(s.F.ielts&&G.S.save>=800000))return G.toast(tr('Gate agent: IELTS + ₦800k proof of funds first!','Gate agent: IELTS + ₦800k proof of funds first!'));s.F.flew=1;check()}}});
   if(b.id==='tech'&&s.path==='japa'&&!s.F.ielts)sp.items.push({t:'talk',x:5.3,z:2.6,r:1.6,act:{l:tr('📝 Pay for IELTS (₦120,000)','📝 Pay IELTS (₦120,000)'),f:()=>{if(!G.pay(120000))return G.toast(tr('Not enough money','Money no reach'));s.F.ielts=1;G.toast('📝 IELTS ✅ Band 8!');G.AU.coin();check()}}})},
  parkActs(b){const s=st();if(!s||s.ch!==5)return[];const a=[];
-  if(s.path==='japa'&&b.id==='park1')a.push({l:'✈️ '+tr('Airport bus → Canada','Airport bus → Canada'),s:tr('Needs IELTS + ₦800k savings','Need IELTS + ₦800k savings'),dis:!(s.F.ielts&&G.S.save>=800000),f:()=>{s.F.flew=1;G.closeModal();check();return 'keep'}});
   if(s.path==='village'&&b.id==='park0')a.push({l:'🏡 '+tr('Bus back to the village','Bus go village'),s:tr('Mum is waiting','Mama dey wait'),f:()=>{s.F.home=1;G.closeModal();check();return 'keep'}});return a},
  target(){const o=cur();if(!o||!o.g)return null;return typeof o.g==='function'?o.g():o.g},
  tracker(){const s=st();if(!s)return'';if(s.ending)return`<b>🏁 ${L(END[s.ending][1])}</b><small>${tr('Free roam','Free roam')}</small>`;const o=cur();return`<b>${tr('Ch','Ch')}${s.ch} · ${L(CH[s.ch-1].n)}</b><small>${o?L(o.t):''}</small>`},

@@ -6,12 +6,13 @@ export class LagosState extends Schema{constructor(){super();this.players=new Ma
 defineTypes(LagosState,{players:{map:Player}});
 const env=(k,d)=>process.env[k]!=null?+process.env[k]:d;
 export const CFG={MAX:env('MAX_PLAYERS',50),TRUST_SECS:env('TRUST_SECS',120),DISTRICT_SLOW:env('DISTRICT_SLOW_SECS',30),JOB_COOLDOWN:env('JOB_COOLDOWN_SECS',90),NEAR:400,SPEED:115,START:50000};
-const DIST=x=>x<1500?'yaba':x<3100?'vi':'lekki';
+let WORLD={WW:18000,WH:14000,areas:[]};try{WORLD=JSON.parse(fs.readFileSync(new URL('../world.json',import.meta.url)))}catch(e){console.warn('world.json missing')}
+export const DIST=(x,y=0)=>{for(const a of WORLD.areas){const r=a.r;if(x>=r[0]&&x<r[2]&&y>=r[1]&&y<r[3])return a.id}return 'lagoon'};
 const HEX=/^#[0-9a-f]{6}$/i;
-const CAREER={tech:{b:'tech',pay:8000},bank:{b:'bank',pay:10000},trade:{b:'market',pay:6000},ent:{b:'studio',pay:7000}};
+const CAREER={tech:{b:'tech',pay:8000},bank:{b:'bank',pay:10000},trade:{b:'market',pay:6000},fix:{b:'cvillage',pay:7000},ent:{b:'studio',pay:7000}};
 const MENU={'buka:0':1500,'buka:1':3000,'buka:2':50,'suya:0':2000,'suya:1':3500,'suya:2':500};
 let ANCH={};try{ANCH=JSON.parse(fs.readFileSync(new URL('../anchors.json',import.meta.url)))}catch(e){console.warn('anchors.json missing: teleports limited to spawn')}
-const SPAWN=ANCH.park0?{x:ANCH.park0.x,y:ANCH.park0.y+24}:{x:640,y:620};
+const SPAWN=ANCH.spawn||{x:4000,y:3200};
 export function makeRoom(ledger,dataDir){
  const log=(f,o)=>fs.appendFile(path.join(dataDir,f),JSON.stringify({ts:new Date().toISOString(),...o})+'\n',()=>{});
  return class LagosRoom extends Room{
@@ -27,18 +28,18 @@ export function makeRoom(ledger,dataDir){
  onAuth(c,o){const n=checkName(o&&o.name);if(!n.ok)throw new Error('bad_name:'+n.reason);if(!o.device||!/^[a-f0-9]{16,64}$/.test(o.device))throw new Error('bad_device');
   for(const [,M] of this.meta)if(M.dev===o.device)throw new Error('already_online');return true}
  onJoin(c,o){const n=checkName(o.name).name,lk=o.look||{},p=new Player();p.name=n;p.skin=HEX.test(lk.skin)?lk.skin:'#7a4b2e';p.out=HEX.test(lk.out)?lk.out:'#0b7a3e';p.hair=Math.max(0,Math.min(4,lk.hair|0));p.body=lk.body?1:0;
-  p.x=SPAWN.x+(Math.random()-.5)*60;p.y=SPAWN.y+Math.random()*20;p.district=DIST(p.x);this.state.players.set(c.sessionId,p);
+  p.x=SPAWN.x+(Math.random()-.5)*16;p.y=SPAWN.y+(Math.random()-.5)*16;p.district=DIST(p.x,p.y);this.state.players.set(c.sessionId,p);
   const dev=o.device;if(!ledger.has(dev))ledger.post(dev,CFG.START,'grant','starter_wallet',{name:n});
   this.meta.set(c.sessionId,{dev,name:n,joined:Date.now(),lastMove:Date.now(),win:0,cnt:0,strikes:0,chatT:[],lastDist:0,lastEm:0,lastRep:0,lastJob:0,lastTp:0,hist:[]});
   c.send('hello',{you:c.sessionId,x:p.x,y:p.y,trustSecs:CFG.TRUST_SECS,districtSlow:CFG.DISTRICT_SLOW,quick:QUICK,emotes:EMOTES,balance:ledger.balance(dev),max:CFG.MAX});
   log('sessions.jsonl',{join:n,dev,room:this.roomId})}
  async onLeave(c,consented){if(!consented){try{await this.allowReconnection(c,20);return}catch(e){}}const M=this.meta.get(c.sessionId);this.state.players.delete(c.sessionId);this.meta.delete(c.sessionId);if(M)log('sessions.jsonl',{leave:M.name,dev:M.dev,room:this.roomId})}
  move(c,M,m){const p=this.state.players.get(c.sessionId),x=+m.x,y=+m.y,now=Date.now();if(!Number.isFinite(x)||!Number.isFinite(y))return;
-  const dt=Math.min(2,(now-M.lastMove)/1000),d=Math.hypot(x-p.x,y-p.y),max=CFG.SPEED*1.6*dt+25;
-  const inb=x>=-80&&x<=4680&&y>=-60&&y<=1250;let ok=inb&&d<=max;
+  const dt=Math.min(2,(now-M.lastMove)/1000),d=Math.hypot(x-p.x,y-p.y),max=(m.v?2000:CFG.SPEED*1.6)*dt+(m.v?60:25);
+  const inb=x>=-200&&x<=WORLD.WW+200&&y>=-200&&y<=WORLD.WH+200;let ok=inb&&d<=max;
   if(!ok&&inb&&now-M.lastTp>8000){const a=Object.values(ANCH).find(a=>Math.hypot(a.x-x,a.y-y)<90);if(a){ok=true;M.lastTp=now}}
   if(!ok){c.send('correct',{x:p.x,y:p.y});M.lastMove=now;return}
-  p.x=x;p.y=y;p.ry=Number.isFinite(+m.ry)?+m.ry:0;p.anim=['idle','walk','dance','wave','kneel'].includes(m.anim)?m.anim:'idle';p.ins=typeof m.ins==='string'?m.ins.slice(0,16):'';p.district=DIST(x);M.lastMove=now}
+  p.x=x;p.y=y;p.ry=Number.isFinite(+m.ry)?+m.ry:0;p.anim=['idle','walk','dance','wave','kneel'].includes(m.anim)?m.anim:'idle';p.ins=typeof m.ins==='string'?m.ins.slice(0,16):'';p.district=DIST(x,y);M.lastMove=now}
  near(p,dist=CFG.NEAR){return this.clients.filter(o=>{const q=this.state.players.get(o.sessionId);return q&&q.ins===p.ins&&Math.hypot(q.x-p.x,q.y-p.y)<=dist})}
  chat(c,M,m,quick){const p=this.state.players.get(c.sessionId),now=Date.now(),ch=m.ch==='district'?'district':'near';let text;
   M.chatT=M.chatT.filter(t=>now-t<10000);if(M.chatT.length>=5||(M.chatT.length&&now-M.chatT[M.chatT.length-1]<2000))return c.send('blocked',{reason:'rate'});
