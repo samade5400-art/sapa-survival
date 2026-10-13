@@ -1,0 +1,10 @@
+import http from 'node:http';import path from 'node:path';import express from 'express';import {Server,matchMaker} from 'colyseus';import {WebSocketTransport} from '@colyseus/ws-transport';
+import {Ledger} from './ledger.js';import {makeRoom,CFG} from './LagosRoom.js';
+const PORT=+process.env.PORT||2567,DATA=process.env.DATA_DIR||path.resolve('data');
+const ledger=new Ledger(DATA);const app=express();
+app.use((q,s,n)=>{s.set('Access-Control-Allow-Origin','*');s.set('Access-Control-Allow-Headers','*');if(q.method==='OPTIONS')return s.sendStatus(204);n()});
+app.get('/',(q,s)=>s.type('text').send('Naija Republic server OK. Connect with the game client.'));
+app.get('/health',async(q,s)=>{const rooms=await matchMaker.query({name:'lagos'});s.json({ok:true,rooms:rooms.length,players:rooms.reduce((a,r)=>a+r.clients,0),max:CFG.MAX,ledger:ledger.seq})});
+const srv=http.createServer(app);const gs=new Server({transport:new WebSocketTransport({server:srv,pingInterval:5000,pingMaxRetries:3})});
+gs.define('lagos',makeRoom(ledger,DATA));
+gs.listen(PORT).then(()=>console.log('Naija Republic server on :'+PORT,'data',DATA));

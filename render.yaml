@@ -1,0 +1,20 @@
+# Render Blueprint: Naija Republic realtime server (free plan). New > Blueprint > pick this repo.
+services:
+  - type: web
+    name: naija-republic-server
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: TRUST_SECS
+        value: "120"
+      - key: DISTRICT_SLOW_SECS
+        value: "30"
+      - key: JOB_COOLDOWN_SECS
+        value: "90"

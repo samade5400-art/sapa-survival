@@ -128,6 +128,9 @@ export const R={cam,get q(){return Q},
    part(new THREE.BoxGeometry(.12,.5,.14),'#263238',-.05,.85,.2),part(new THREE.BoxGeometry(.12,.5,.14),'#263238',-.05,.85,-.2));return this._og=mergeGeometries(P)},
  vehicles(){for(const v of D.BUS){const m=new THREE.Mesh(v.ok?this.okadaGeo():this.danfoGeo(),VC);m.castShadow=true;scene.add(m);busM.push(m)}},
  npcs(){D.NPC.forEach((n,i)=>{const a=makeAvatar(n.look,true);a.visible=i<QS[Q].npc;scene.add(a);npcAv.push(a)})},
+ addRemote(lk){const a=makeAvatar(lk);a.traverse(o=>{if(o.isMesh)o.castShadow=false});scene.add(a);return a},
+ removeRemote(a){if(a)scene.remove(a)},
+ animRemote(a,ph,anim,tm){animX(a,ph,anim,tm)},
  setLook(lk){if(!player)return;player.clear();const a=makeAvatar(lk);player.add(a);player.userData.av=a},
  // ---------- interiors ----------
  enterInterior(sp){iscene=new THREE.Scene();iscene.background=new THREE.Color('#0d0d12');const {w,d}=sp;const anim=[],cols=[],npcs=[],acts=[];
@@ -155,7 +158,7 @@ export const R={cam,get q(){return Q},
  frame(dt,st){const tm=st.tm,P=st.p;
   const av=player&&player.userData.av;
   // animate player
-  if(av){const host=iscene?iInfo.ip:player;host.position.set(P.x,0,P.z);if(!st.dead){host.rotation.set(0,P.ry,0);av.position.y=0;av.rotation.set(0,0,0);animate(av,P.ph,P.moving?1:0,tm)}
+  if(av){const host=iscene?iInfo.ip:player;host.position.set(P.x,0,P.z);if(!st.dead){host.rotation.set(0,P.ry,0);av.position.y=0;av.rotation.set(0,0,0);(P.anim&&P.anim!=='idle'&&!P.moving)?animX(av,P.ph,P.anim,tm):animate(av,P.ph,P.moving?1:0,tm)}
    else{const k=Math.min(1,st.dead.t/0.9);host.position.x+=st.dead.dx*k*3.5;host.position.z+=st.dead.dz*k*3.5;av.position.y=Math.sin(k*Math.PI)*1.6+.15*k;av.rotation.x=-k*Math.PI/2;av.rotation.z=k*1.2;const u=av.userData;u.arms[0].rotation.z=k*2;u.arms[1].rotation.z=-k*2;u.legs[0].rotation.x=k*.6}}
   const tgt=new THREE.Vector3(P.x,1.3,P.z);if(st.dead)tgt.set(P.x+st.dead.dx*3,1,P.z+st.dead.dz*3);
   let yaw=cam.yaw,pitch=cam.pitch,dist=cam.dist;if(st.title){yaw=tm*.06;pitch=.35;dist=26;tgt.set(P.x,4,P.z)}
@@ -204,6 +207,10 @@ export function makeAvatar(lk,npc){const g=new THREE.Group(),sk=lam(lk.skin),out
  g.traverse(o=>{if(o.isMesh)o.castShadow=!npc||true});g.userData=u;return g}
 function animate(a,ph,mv,tm){const u=a.userData,s=Math.sin(ph)*.7*mv;u.legs[0].rotation.x=s;u.legs[1].rotation.x=-s;u.arms[0].rotation.x=-s*.85;u.arms[1].rotation.x=s*.85;u.arms[0].rotation.z=u.arms[1].rotation.z=0;
  a.position.y=mv?Math.abs(Math.cos(ph))*.05:0;u.body.scale.y=mv?1:1+Math.sin(tm*2.2+ph)*.015}
+export function animX(a,ph,anim,tm){const u=a.userData;if(anim==='walk'){animate(a,ph,1,tm);return}animate(a,ph,0,tm);
+ if(anim==='dance'){a.position.y=Math.abs(Math.sin(tm*9))*.22;u.arms.forEach((r,i)=>{r.rotation.x=-2.5+Math.sin(tm*9+i*3)*.5});u.legs[0].rotation.x=Math.sin(tm*9)*.5;u.legs[1].rotation.x=-Math.sin(tm*9)*.5}
+ else if(anim==='wave'){u.arms[1].rotation.z=2.6+Math.sin(tm*10)*.35}
+ else if(anim==='kneel'){a.position.y=-.35;u.legs.forEach(l=>l.rotation.x=-1.4);u.arms.forEach(r=>r.rotation.x=-.4)}}
 // ---------- interior furniture ----------
 const F=(f)=>({f});
 const FURN={

@@ -1,7 +1,8 @@
 // Sapa Survival v3 — 3D Lagos World. Single-player life-sim. Three.js via importmap, no build step.
-import {R,K} from './r3d.js?v=5';
-import {makeAudio} from './audio.js?v=5';
-import {makeStory} from './story.js?v=5';
+import {R,K} from './r3d.js?v=6';
+import {makeNet} from './online.js?v=6';
+import {makeAudio} from './audio.js?v=6';
+import {makeStory} from './story.js?v=6';
 const $=s=>document.querySelector(s);
 const cv=$('#cv');
 const SAVE='sapa_world_v3',MAXM=1e9,WW=4600,WH=1400,RY=560,RH=100,SHORE=1150,SEA=1220;
@@ -61,10 +62,10 @@ function fix(){if(!S)return;['money','debt','save'].forEach(k=>{if(!okNum(S[k]))
  if(!okNum(S.t)||S.t<0)S.t=420;for(const k in CAR){const c=S.car[k]||(S.car[k]={lv:0,xp:0});c.lv=cl(c.lv|0,0,3);c.xp=cl(c.xp|0,0,999)}
  if(!okNum(S.p.x)||!okNum(S.p.y)||blocked(S.p.x,S.p.y)){S.p.x=BY.room.door.x;S.p.y=BY.room.door.y+20}}
 // all money flows through these two
-function pay(n){if(!okNum(n)||n<0||n>MAXM)return false;n=Math.round(n);if(S.money<n)return false;S.money-=n;fix();return true}
-function earn(n){if(!okNum(n)||n<0)return;S.money=Math.min(MAXM,S.money+Math.round(Math.min(n,5e6)));fix()}
+function pay(n,tag){if(!okNum(n)||n<0||n>MAXM)return false;n=Math.round(n);if(S.money<n)return false;S.money-=n;fix();if(S.online&&NET&&n>0){if(tag&&tag.startsWith('food:'))NET.buy(tag.slice(5));else NET.spend(n,tag||'misc')}return true}
+function earn(n,tag){if(!okNum(n)||n<0)return;if(S.online){if(tag&&tag.startsWith('job:')){const [,k,sc]=tag.split(':');NET.job(k,+sc)}else if(n>0)toast(tr('Online prototype: only job pay is credited by the server','Online test: na only work money server dey pay'));return}S.money=Math.min(MAXM,S.money+Math.round(Math.min(n,5e6)));fix()}
 function stat(k,d){if(okNum(d))S[k]=cl(S[k]+d,0,100)}
-function save(){if(S&&S.look)try{localStorage.setItem(SAVE,JSON.stringify(S))}catch(e){}}
+function save(){if(S&&S.look&&!S.online)try{localStorage.setItem(SAVE,JSON.stringify(S))}catch(e){}}
 function load(){try{const s=JSON.parse(localStorage.getItem(SAVE));if(s&&s.v===3&&s.look&&s.p&&s.car){S=s;fix();return true}}catch(e){}
  try{const s=JSON.parse(localStorage.getItem('sapa_world_v2'));if(s&&s.v===2&&s.look&&s.p&&s.car){s.v=3;s.deaths=0;s.tut=0;S=s;fix();save();setTimeout(()=>toast(tr('Your v2 save was carried into 3D Lagos ✅','We carry your old save enter 3D Lagos ✅')),1500);return true}}catch(e){}return false}
 // ---------- Geometry ----------
@@ -143,9 +144,9 @@ const COND=[['Oshodi! Oshodi! Enter with your change!','Oshodi! Oshodi! Enter wi
 // ---------- Input ----------
 const keys={};let joy=null,near=null,nearAct=null;const ptrs=new Map();let pinch=0;
 const touchy=('ontouchstart' in window)||matchMedia('(pointer:coarse)').matches;
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=1;if((k==='e'||k===' '||k==='enter')&&uiFree()&&(near||nearAct)){e.preventDefault();interact()}if(k==='p'&&uiFree())openPhone();if(k==='escape'){closeModal();closePhone()}
+addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;const k=e.key.toLowerCase();keys[k]=1;if((k==='e'||k===' '||k==='enter')&&uiFree()&&(near||nearAct)){e.preventDefault();interact()}if(k==='p'&&uiFree())openPhone();if(k==='escape'){closeModal();closePhone()}
  if(k==='q')R.cam.yaw+=.3;if(k==='r')R.cam.yaw-=.3});
-addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);addEventListener('blur',()=>{for(const k in keys)keys[k]=0});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=0});
 const jEl=$('#joy'),jK=jEl.firstElementChild;
 cv.addEventListener('pointerdown',e=>{if(!uiFree())return;try{cv.setPointerCapture(e.pointerId)}catch(_){}
@@ -321,7 +322,7 @@ function homeP(b){panel(()=>{const isHome=!S.homeless&&HOMES[S.home].b===b.id,h=
 function sleep(){const h=HOMES[S.home];let q=h.sleep;if(S.bo){if(S.fuel>=4)S.fuel-=4;else{q*=.55;stat('peace',-8)}}
  const hr=hour(),hrs=hr<7?7-hr:Math.min(10,31-hr);adv(Math.max(6,hrs)*60);S.energy=cl(S.energy+100*q,0,100);stat('peace',S.home*4+2);toast(tr('Good morning! ☀️','Good morning o! ☀️'))}
 function bukaP(b){const F=b.id==='buka'?[['🍲',['Amala + ewedu + gbegiri','Amala, ewedu, gbegiri'],1500,40,2],['🍛',['Jollof rice + chicken','Jollof + chicken'],3000,55,5],['💧',['Pure water','Pure water'],50,3,1]]:[['🍢',['Suya stick','Suya'],2000,25,4],['🍛',['Party jollof','Party jollof'],3500,55,5],['🥤',['Zobo','Zobo'],500,8,2]];
- panel(()=>({em:'🍲',title:L(b.lab),text:tr('What will you eat?','Wetin you wan chop?'),acts:F.map(f=>({l:`${f[0]} ${L(f[1])} — ${N(f[2])}`,s:`+🍲${f[3]} +☮️${f[4]}`,dis:S.money<f[2]||S.hunger>=98,f:()=>{if(pay(f[2])){STORY.ev('ate');AU.coin();stat('hunger',f[3]);stat('peace',f[4]);stat('energy',3);adv(20)}}}))}))}
+ panel(()=>({em:'🍲',title:L(b.lab),text:tr('What will you eat?','Wetin you wan chop?'),acts:F.map(f=>({l:`${f[0]} ${L(f[1])} — ${N(f[2])}`,s:`+🍲${f[3]} +☮️${f[4]}`,dis:S.money<f[2]||S.hunger>=98,f:()=>{if(pay(f[2],'food:'+(b.id==='buka'?'buka':'suya')+':'+F.indexOf(f))){STORY.ev('ate');AU.coin();stat('hunger',f[3]);stat('peace',f[4]);stat('energy',3);adv(20)}}}))}))}
 function carFor(b){return Object.keys(CAR).find(k=>CAR[k].loc===b.id)}
 function workP(b){const k=carFor(b),C=CAR[k];panel(()=>{const c=S.car[k],hr=hour(),open=hr>=C.hrs[0]&&hr<C.hrs[1],nx=c.lv<3?tr(`Next promotion: ${XPN[c.lv+1]} XP & ⭐${RQN[c.lv+1]}`,`Next promotion: ${XPN[c.lv+1]} XP & ⭐${RQN[c.lv+1]}`):tr('Top of the ladder!','You don reach top!');
  const acts=[{l:`${C.em} ${tr('Work an 8-hour shift','Do 8-hour shift')}`,s:open?tr(`Pay up to ${N(C.pay[c.lv])} · needs ⚡25 🍲10`,`Pay reach ${N(C.pay[c.lv])} · need ⚡25 🍲10`):tr(`Closed. Open ${C.hrs[0]}:00–${C.hrs[1]}:00`,`E don close. E dey open ${C.hrs[0]}:00–${C.hrs[1]}:00`),dis:!open||!need(25,10),f:()=>{shift(k);return 'keep'}}];
@@ -333,7 +334,7 @@ function shift(k){const C=CAR[k],c=S.car[k];let round=0,score=0,tmr;const sh=$('
   sh.innerHTML=`<div class="card"><h2>${C.em} ${tr('Shift','Shift')} ${round}/6 · ✅${score}</h2><p style="font-size:22px">${tr('Quick!','Sharp sharp!')} ${L(ans)}</p><div class="timer"><i id="tb" style="width:100%"></i></div></div><div class="grid3">${pool.map((t,i)=>`<button data-t="${i}">${t[2]}<br>${L(t)}</button>`).join('')}</div>`;
   requestAnimationFrame(()=>{const tb=$('#tb');if(tb){tb.style.transitionDuration='2.6s';tb.style.width='0%'}});
   tmr=setTimeout(next,2600);sh.querySelectorAll('[data-t]').forEach(bt=>bt.onclick=()=>{clearTimeout(tmr);if(pool[+bt.dataset.t]===ans)score++;next()})}
- function done(){const p=Math.round(C.pay[c.lv]*(0.4+0.6*score/6));earn(p);c.xp=Math.min(999,c.xp+score);stat('energy',-25);stat('hunger',-15);adv(8*60);S.shifts++;setTimeout(()=>STORY.ev('shift',k),50);let promo='';
+ function done(){const p=Math.round(C.pay[S.online?0:c.lv]*(0.4+0.6*score/6));earn(p,'job:'+k+':'+score);c.xp=Math.min(999,c.xp+score);stat('energy',-25);stat('hunger',-15);adv(8*60);S.shifts++;setTimeout(()=>STORY.ev('shift',k),50);let promo='';
   if(c.lv<3&&c.xp>=XPN[c.lv+1]&&S.respect>=RQN[c.lv+1]){c.lv++;stat('respect',6);setTimeout(()=>STORY.ev('promo'),900);promo=`<p>🎉 ${tr('PROMOTED to','Dem PROMOTE you to')} <b>${L(C.t[c.lv])}</b>!</p>`}
   fix();save();hud();sh.innerHTML=`<div class="card"><div class="em">💼</div><h2>${tr('Shift done!','Shift don finish!')}</h2><p>${score}/6 ${tr('tasks','tasks')} · ${tr('Earned','You collect')} <b>${N(p)}</b> · +${score} XP</p>${promo}${statLine()}</div><div class="acts"><button id="sd">OK</button></div>`;$('#sd').onclick=()=>drawPanel()}
  next()}
@@ -353,7 +354,7 @@ function clubP(b){panel(()=>{const hr=hour(),open=hr>=21||hr<4;return{em:'🪩',
  {l:tr('🎟️ Regular entry ','🎟️ Regular gate ')+N(10000),s:'+⭐5 +☮️6 −⚡15',dis:!open||S.money<10000||S.energy<15,f:()=>{if(pay(10000)){stat('respect',5);stat('peace',6);stat('energy',-15);adv(120);S.clubT=S.t+180;STORY.ev('club',0);clubEvent()}}},
  {l:tr('🍾 VIP table ','🍾 VIP table ')+N(80000),s:'+⭐18 +☮️10 −⚡20',dis:!open||S.money<80000||S.energy<20,f:()=>{if(pay(80000)){stat('respect',18);stat('peace',10);stat('energy',-20);adv(180);S.clubT=S.t+240;STORY.ev('club',1);clubEvent()}}}]}})}
 function clubEvent(){const r=Math.random();if(r<.15){earn(20000);toast(tr('💸 A celebrity sprayed you ₦20,000!','💸 Celebrity spray you ₦20,000!'))}else if(r<.28){pay(Math.min(S.money,15000));stat('peace',-10);toast(tr('📵 Your phone got "missing". Paid ₦15,000 to replace.','📵 Dem japa with your phone. ₦15k don go.'))}else if(r<.38){stat('respect',8);toast(tr('🎤 You got called on stage!','🎤 Dem call you enter stage!'))}}
-function parkP(b){panel(()=>{const from=b.d,acts=DIST.map((d,i)=>i===from?null:{l:`🚌 ${tr('Danfo to','Danfo go')} ${L(d.n)} — ${N(FARE[from][i])}`,s:tr('~40 min, squeeze inside','~40 min, squeeze body'),dis:S.money<FARE[from][i],f:()=>{if(pay(FARE[from][i])){adv(40);stat('energy',-4);const t=BY['park'+i].door;S.p.x=t.x;S.p.y=t.y+24;closeModal();toast('📍 '+L(d.n));return 'keep'}}}).filter(Boolean);
+function parkP(b){panel(()=>{const from=b.d,acts=DIST.map((d,i)=>i===from?null:{l:`🚌 ${tr('Danfo to','Danfo go')} ${L(d.n)} — ${N(FARE[from][i])}`,s:tr('~40 min, squeeze inside','~40 min, squeeze body'),dis:S.money<FARE[from][i],f:()=>{if(pay(FARE[from][i],'fare:'+i)){adv(40);stat('energy',-4);const t=BY['park'+i].door;S.p.x=t.x;S.p.y=t.y+24;closeModal();toast('📍 '+L(d.n));return 'keep'}}}).filter(Boolean);
  if(S.homeless)acts.push({l:tr('🪑 Sleep on a bench','🪑 Sleep for bench'),s:'+⚡35 −☮️10',f:()=>{adv(6*60);stat('energy',35);stat('peace',-10)}});
  acts.push(...STORY.parkActs(b));return{em:'🚌',title:L(b.lab),text:tr('"Oshodi! Obalende! Enter with your change!"','"Oshodi! Obalende! Enter with your change o!"'),acts}})}
 function worshipP(b){panel(()=>({em:'🕌⛪',title:L(b.lab),text:tr('A quiet place to reset.','Quiet place to rest your mind.'),acts:[{l:tr('🙏 Pray / reflect (1h)','🙏 Pray small (1h)'),s:'+☮️15',f:()=>{stat('peace',15);adv(60)}},{l:tr('🎁 Give offering ','🎁 Drop offering ')+N(1000),s:'+⭐2 +☮️4',dis:S.money<1000,f:()=>{if(pay(1000)){stat('respect',2);stat('peace',4)}}}]}))}
@@ -407,16 +408,18 @@ function creator(){$('#title').classList.add('hide');$('#creator').classList.rem
  $('#bgc').querySelectorAll('button').forEach(b=>b.onclick=()=>{cbg=b.dataset.v;$('#bgc').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
  $('#clang').onclick=()=>{S=S||{};S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();creator()};
  $('#go').onclick=()=>{const name=(ck.name||'').replace(/[<>&"']/g,'').trim().slice(0,14)||'Tunde';S=fresh({...ck,name},cbg);if(STORYMODE){S.story=STORY.fresh();S.money=50000;S.debt=cbg==='lapo'?100000:0;S.respect=2;if(cbg==='nepo')S.peace=85;const d=BY.park0.door;S.p.x=d.x;S.p.y=d.y+20;S.tut=0;fix();save();start(true);STORY.intro(()=>{hud();nextTip(800)});return}fix();save();start();toast(cbg==='nepo'?tr('Daddy\'s money landed. Don\'t waste it!','Papa money don land. No waste am!'):tr('Lapo loan landed. Repay at the bank in VI!','Lapo loan don land. Pay back for bank for VI!'))}}
+function goOnline(){NET.openJoin(S&&S.look,look=>{const lang=SET.lang;const keepP=S&&S.online?null:{...(S&&S.p||{})};const sp=NET._spawn;S=fresh(look,'nepo');S.lang=lang;S.online=true;S.debt=0;S.tut=TIPS.length;S.money=netMoney;if(sp){S.p.x=sp.x;S.p.y=sp.y}fix();start(true);NET.show();toast(tr('🟢 Online! Be nice. Chat is filtered.','🟢 You don enter online! Behave. Chat get filter.'))})}
+let netMoney=50000;
 function start(noTip){$('#creator').classList.add('hide');$('#title').classList.add('hide');R.setLook(S.look);DEAD=null;$('#hud').classList.remove('hide');$('#phoneBtn').classList.remove('hide');lastDist=-1;hud();if(S.tut<TIPS.length&&!noTip)nextTip(1200);if(S.story&&S.story.on&&!S.story.intro&&!noTip)STORY.intro(()=>hud())}
 
 // ---------- Title / loading / boot ----------
 function showTitle(){const has=load();const t=$('#title');t.classList.remove('hide');
  t.innerHTML=`<div class="tcard"><div class="logo">SAPA<br>SURVIVAL<span>3D LAGOS LIFE</span></div><p>${tr('Hustle in Yaba, VI & Lekki. Pay rent. Survive NEPA. Dodge danfo.','Hustle for Yaba, VI & Lekki. Pay rent. Survive NEPA. Dodge danfo.')}</p>
- ${has?`<button id="tCont">▶ ${tr('Continue','Continue')} — ${S.look.name}, ${tr('Day','Day')} ${day()}</button>`:''}<button id="tStory" class="${has?'alt':''}">📖 ${tr('New Story','New Story')}<small>${tr('From Face-Me-I-Face-You to Lekki','From Face-Me-I-Face-You to Lekki')}</small></button><button id="tNew" class="alt">🌍 ${tr('New Free Roam','New Free Roam')}</button>
+ ${has?`<button id="tCont">▶ ${tr('Continue','Continue')} — ${S.look.name}, ${tr('Day','Day')} ${day()}</button>`:''}<button id="tStory" class="${has?'alt':''}">📖 ${tr('New Story','New Story')}<small>${tr('From Face-Me-I-Face-You to Lekki','From Face-Me-I-Face-You to Lekki')}</small></button><button id="tNew" class="alt">🌍 ${tr('New Free Roam','New Free Roam')}</button><button id="tOnline" class="online">🟢 ${tr('Play Online','Play Online')}<small>${tr('Shared Lagos · up to 50 players · chat (beta)','Shared Lagos · reach 50 people · chat (beta)')}</small></button>
  <div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?'⚡ Low':q==='med'?'Medium':'✨ High'}</button>`).join('')}</div>
- <div class="row"><button class="opt" id="tSnd">${SET.snd?'🔊':'🔇'} ${tr('Sound','Sound')}</button><button class="opt" id="tLng">🌐 ${tr('Pidgin','English')}</button></div><p class="sm">${tr('Single-player · saves on this device · no login','Na only you · e save for this phone · no login')}</p></div>`;
+ <div class="row"><button class="opt" id="tSnd">${SET.snd?'🔊':'🔇'} ${tr('Sound','Sound')}</button><button class="opt" id="tLng">🌐 ${tr('Pidgin','English')}</button></div><p class="sm">${tr('Story & Free Roam: single-player, saved on this device · Online: beta, no login','Story & Free Roam: na only you · Online: beta, no login')}</p></div>`;
  if(has)$('#tCont').onclick=()=>{AU.init();start()};
- const nw_=story=>{AU.init();if(has&&!confirm(tr('Start a new life? Your current save will be replaced when you enter Lagos.','Start new life? Your old save go clear when you enter Lagos.')))return;const lang=(S&&S.lang)||SET.lang;S={lang};STORYMODE=story;creator()};$('#tStory').onclick=()=>nw_(true);$('#tNew').onclick=()=>nw_(false);
+ const nw_=story=>{AU.init();if(has&&!confirm(tr('Start a new life? Your current save will be replaced when you enter Lagos.','Start new life? Your old save go clear when you enter Lagos.')))return;const lang=(S&&S.lang)||SET.lang;S={lang};STORYMODE=story;creator()};$('#tStory').onclick=()=>nw_(true);$('#tOnline').onclick=()=>{AU.init();goOnline()};$('#tNew').onclick=()=>nw_(false);
  t.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);showTitle()});
  $('#tSnd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();showTitle()};$('#tLng').onclick=()=>{SET.lang=SET.lang==='pg'?'en':'pg';if(S)S.lang=SET.lang;saveSet();showTitle()}}
 const prog=p=>{$('#lbar').style.width=p+'%';$('#lpct').textContent=Math.round(p)+'%';return new Promise(r=>setTimeout(r,16))};
@@ -424,8 +427,8 @@ let last=performance.now(),hudT=0;
 function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;tm+=dt;
  try{worldTick(dt);const playing=S&&S.look&&!vis('#title');if(playing)update(dt);
   const title=!playing;const pp=IN?{x:IN.p.x,z:IN.p.z}:(S&&S.p&&S.look?{x:S.p.x*K,z:S.p.y*K}:{x:BY.tech.door.x*K,z:(RY+50)*K});
-  let mk=null;if(playing&&!DEAD){if(IN&&nearAct)mk=[nearAct.x,nearAct.z,2.3];else if(near)mk=[near.door.x*K,(near.door.y+4)*K,2.4]}
-  R.frame(dt,{tm,p:{...pp,ry:PR.ry,ph:PR.ph,moving:PR.moving},h:S&&S.look?hour():16.8,nf:S&&S.look?nightF():0,bo:S&&S.look?S.bo:0,dead:DEAD,marker:mk,title:title&&!vis('#creator')||(title&&!(S&&S.look)),cine:STORY.cine,wp:(playing&&!IN&&STORY.on&&STORY.target()&&BY[STORY.target()])?[BY[STORY.target()].door.x*K,BY[STORY.target()].door.y*K]:null});
+  if(NET.on)NET.frame(dt,tm);let mk=null;if(playing&&!DEAD){if(IN&&nearAct)mk=[nearAct.x,nearAct.z,2.3];else if(near)mk=[near.door.x*K,(near.door.y+4)*K,2.4]}
+  R.frame(dt,{tm,p:{...pp,ry:PR.ry,ph:PR.ph,moving:PR.moving,anim:NET.on?NET.localAnim():'idle'},h:S&&S.look?hour():16.8,nf:S&&S.look?nightF():0,bo:S&&S.look?S.bo:0,dead:DEAD,marker:mk,title:title&&!vis('#creator')||(title&&!(S&&S.look)),cine:STORY.cine,wp:(playing&&!IN&&STORY.on&&STORY.target()&&BY[STORY.target()])?[BY[STORY.target()].door.x*K,BY[STORY.target()].door.y*K]:null});
   audioFrame(playing);
   bubTick(dt);AU.tick();if(playing){STORY.tick(dt);hudT+=dt;if(hudT>.25){hudT=0;hud()}}
   fpsN++;}catch(e){console.error(e)}requestAnimationFrame(loop)}
@@ -443,8 +446,10 @@ const STORY=makeStory({get S(){return S},tr,N,toast,pay,earn,stat,adv,save,fix,h
 async function boot(){try{await prog(20);await R.init(cv,SET.q);await prog(45);await R.build({B,WW,WH,SEA,RY,RH,PALMS,LAMPS,NPC,BUS,busPos,drawStatic,GEN},prog);await prog(100);
  setTimeout(()=>{$('#load').classList.add('hide');showTitle()},200);requestAnimationFrame(loop)}catch(e){console.error(e);$('#lmsg').textContent='Could not start 3D: '+e.message+'. Try another browser or enable WebGL.'}}
 addEventListener('visibilitychange',()=>document.hidden&&S&&S.look&&save());
+const NET=makeNet({get S(){return S},get IN(){return IN},get PR(){return PR},tr,toast,AU,uiFree:()=>uiFree(),nearSomething:()=>!!(near||nearAct),setMoney:m=>{netMoney=m;if(S&&S.online){S.money=m;hud()}},back:()=>showTitle(),exitOnline:()=>{if(IN)leaveInterior(true);closeModal();closePhone();S=null;$('#hud').classList.add('hide');$('#phoneBtn').classList.add('hide');showTitle()},
+ fallback:why=>{const msg=why==='kicked'?tr('You were removed from the server.','Server don comot you.'):tr('😓 Online server is down. Back to single-player — your offline save is safe.','😓 Server don fall. Make we go back single-player — your save dey safe.');if(IN)leaveInterior(true);closeModal();closePhone();S=null;$('#hud').classList.add('hide');$('#phoneBtn').classList.add('hide');showTitle();toast(msg)}});
 // test/debug hooks
-window.G={get S(){return S},adv,blackout,streetEvent,interact,openPhone,R,
+window.G={get S(){return S},NET,get PR(){return PR},adv,blackout,streetEvent,interact,openPhone,R,
  tp:id=>{if(IN)leaveInterior(true);const d=BY[id].door;S.p.x=d.x;S.p.y=d.y+10},get near(){return near&&near.id},get nearAct(){return nearAct&&nearAct.act.l},get IN(){return IN&&IN.b.id},get DEAD(){return DEAD},B:BY,BUS,
  setHour:h=>{S.t=Math.floor(S.t/1440)*1440+h*60+(h*60<S.t%1440?1440:0);S.lh=Math.floor(S.t/60)},
  enter:id=>{if(IN)leaveInterior(true);const d=BY[id].door;S.p.x=d.x;S.p.y=d.y+10;near=BY[id];interact()},

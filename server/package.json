@@ -1,0 +1,23 @@
+{
+ "name": "naija-republic-server",
+ "version": "1.0.0",
+ "description": "",
+ "main": "src/index.js",
+ "scripts": {
+  "start": "node src/index.js",
+  "test": "node test/filter.test.js"
+ },
+ "keywords": [],
+ "author": "",
+ "license": "ISC",
+ "dependencies": {
+  "@colyseus/schema": "^3.0.76",
+  "@colyseus/ws-transport": "^0.16.5",
+  "colyseus": "^0.16.5",
+  "express": "^4.22.3"
+ },
+ "type": "module",
+ "engines": {
+  "node": ">=20"
+ }
+}
