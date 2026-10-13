@@ -1,12 +1,13 @@
 // Sapa Survival v3 — 3D Lagos World. Single-player life-sim. Three.js via importmap, no build step.
-import {R,K} from './r3d.js';
-import {makeAudio} from './audio.js';
-import {makeStory} from './story.js';
+import {R,K} from './r3d.js?v=5';
+import {makeAudio} from './audio.js?v=5';
+import {makeStory} from './story.js?v=5';
 const $=s=>document.querySelector(s);
 const cv=$('#cv');
 const SAVE='sapa_world_v3',MAXM=1e9,WW=4600,WH=1400,RY=560,RH=100,SHORE=1150,SEA=1220;
 const DIST=[{id:'yaba',ox:0,n:['Yaba','Yaba']},{id:'vi',ox:1600,n:['Victoria Island','VI']},{id:'lekki',ox:3200,n:['Lekki','Lekki']}];
-const SET=Object.assign({q:innerWidth<760?'med':'high',snd:1,lang:'en',vm:.7,vs:.8,va:.6},(()=>{try{return JSON.parse(localStorage.getItem('sapa_settings'))||{}}catch(e){return{}}})());
+const SET=Object.assign({q:innerWidth<760?'med':'high',snd:1,lang:'en',vm:.8,vs:.8,va:.5},(()=>{try{return JSON.parse(localStorage.getItem('sapa_settings'))||{}}catch(e){return{}}})());
+['vm','vs','va'].forEach(k=>{if(!(typeof SET[k]==='number'&&SET[k]>=0&&SET[k]<=1))SET[k]=k==='va'?.5:.8});if(SET.snd!==0)SET.snd=1;
 const saveSet=()=>{try{localStorage.setItem('sapa_settings',JSON.stringify(SET))}catch(e){}};
 let S=null;
 const tr=(e,p)=>(((S&&S.lang)||SET.lang)==='pg')?p:e;
@@ -127,7 +128,10 @@ const genOn=()=>S&&S.genT>S.t;
 
 // ---------- Audio (audio.js) ----------
 const AU=makeAudio(SET);
-addEventListener('pointerdown',()=>AU.init());addEventListener('keydown',()=>AU.init());
+const _unl=()=>{AU.init();sndBan()};['pointerdown','pointerup','touchend','click','keydown'].forEach(e=>addEventListener(e,_unl,{capture:true,passive:true}));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&AU.ctx&&AU.ctx.state!=='running')try{AU.ctx.resume()}catch(e){}});
+function sndBan(){const b=document.getElementById('sndBan');if(!b)return;const ok=AU.ctx&&AU.ctx.state==='running';b.classList.toggle('hide',!!ok||!SET.snd)}
+setInterval(sndBan,1000);
 
 // ---------- Speech bubbles ----------
 const BUB=[];
@@ -379,8 +383,8 @@ function drawPhone(){const T=[['stats','📊',tr('Stats','Stats')],['bank','🏦
  else if(tab==='bank')bd.innerHTML=`<div class="card"><h2>🏦 ${N(S.save)}</h2><p>${tr('Savings','Savings')} · ${tr('Debt','Debt')} ${N(S.debt)}</p><p style="font-size:13px">${tr('Deposits, withdrawals and loans are done in person at Gidi Trust Bank (Victoria Island). Interest is applied weekly.','Go Gidi Trust Bank for VI to save, collect or borrow. Interest dey enter every week.')}</p></div>`;
  else if(tab==='quest')bd.innerHTML=`<div class="qlog">${STORY.log()}</div>`;
  else if(tab==='sapa')bd.innerHTML=`<iframe id="sapaFrame" src="challenge/index.html" title="Sapa Challenge"></iframe>`;
- else{bd.innerHTML=`<div class="acts"><p><b>🎮 ${tr('Graphics','Graphics')}</b></p><div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?tr('Low (fast)','Low (fast)'):q==='med'?tr('Medium','Medium'):tr('High','High')}</button>`).join('')}</div><p><b>🔊 ${tr('Audio','Audio')}</b></p>${[['vm','🎵',tr('Music','Music')],['vs','💥',tr('Sound effects','Sound effects')],['va','🌆',tr('Ambience','Ambience')]].map(([k,e,n])=>`<label class="sl">${e} ${n}<input type="range" min="0" max="1" step="0.05" value="${SET[k]??.7}" data-v="${k}"></label>`).join('')}<button id="snd">${SET.snd?'🔇 '+tr('Mute all','Mute everything'):'🔊 '+tr('Unmute','Unmute')}</button><button id="lng">🌐 ${tr('Language: English → switch to Pidgin','Language: Pidgin → switch to English')}</button><button id="sv">💾 ${tr('Save now','Save am now')}</button><button id="rs" class="alt">🗑️ ${tr('Reset game (new character)','Start again (new person)')}</button></div><p style="font-size:12px">${tr('Single-player. Saved on this device only. No chat, no real-money purchases.','Na only you dey play. E save for this phone only. No chat, no real money.')}</p>`;
-  $('#lng').onclick=()=>{S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();save();drawPhone();hud()};bd.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);drawPhone()});$('#snd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();drawPhone()};bd.querySelectorAll('[data-v]').forEach(i=>i.oninput=()=>{SET[i.dataset.v]=+i.value;saveSet();AU.init();AU.vol()});$('#sv').onclick=()=>{save();toast(tr('Saved ✅','E don save ✅'))};
+ else{bd.innerHTML=`<div class="acts"><p><b>🎮 ${tr('Graphics','Graphics')}</b></p><div class="row">${['low','med','high'].map(q=>`<button class="opt ${SET.q===q?'on':''}" data-q="${q}">${q==='low'?tr('Low (fast)','Low (fast)'):q==='med'?tr('Medium','Medium'):tr('High','High')}</button>`).join('')}</div><p><b>🔊 ${tr('Audio','Audio')}</b></p>${[['vm','🎵',tr('Music','Music')],['vs','💥',tr('Sound effects','Sound effects')],['va','🌆',tr('Ambience','Ambience')]].map(([k,e,n])=>`<label class="sl">${e} ${n}<input type="range" min="0" max="1" step="0.05" value="${SET[k]??.7}" data-v="${k}"></label>`).join('')}<button id="mtest">🎵 ${tr('Test music','Test music')}</button><button id="snd">${SET.snd?'🔇 '+tr('Mute all','Mute everything'):'🔊 '+tr('Unmute','Unmute')}</button><button id="lng">🌐 ${tr('Language: English → switch to Pidgin','Language: Pidgin → switch to English')}</button><button id="sv">💾 ${tr('Save now','Save am now')}</button><button id="rs" class="alt">🗑️ ${tr('Reset game (new character)','Start again (new person)')}</button></div><p style="font-size:12px">${tr('Single-player. Saved on this device only. No chat, no real-money purchases.','Na only you dey play. E save for this phone only. No chat, no real money.')}</p>`;
+  $('#lng').onclick=()=>{S.lang=S.lang==='pg'?'en':'pg';SET.lang=S.lang;saveSet();save();drawPhone();hud()};bd.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{SET.q=b.dataset.q;saveSet();R.setQuality(SET.q);drawPhone()});$('#mtest').onclick=()=>{const st=AU.test();toast('🎵 Audio: '+st+(AU.rendered?' · '+AU.rendered+' loops ready':''))};$('#snd').onclick=()=>{SET.snd=SET.snd?0:1;saveSet();AU.init();AU.vol();drawPhone()};bd.querySelectorAll('[data-v]').forEach(i=>i.oninput=()=>{SET[i.dataset.v]=+i.value;saveSet();AU.init();AU.vol()});$('#sv').onclick=()=>{save();toast(tr('Saved ✅','E don save ✅'))};
   $('#rs').onclick=()=>{if(confirm(tr('Delete your save and start over?','You sure say make we clear everything?'))){localStorage.removeItem(SAVE);const lang=S.lang;S={lang};if(IN)leaveInterior(true);closePhone();creator()}}}}
 // ---------- Character creator ----------
 

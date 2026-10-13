@@ -2,13 +2,23 @@
 const mf=m=>440*Math.pow(2,(m-69)/12);
 export function makeAudio(SET){
 const A={ctx:null,cur:null,club:0,dist:null,loops:{},T:{},
- init(){if(this.ctx){if(this.ctx.state==='suspended')this.ctx.resume();return}try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=this.ctx=new C();
+ unlock(){if(!this._el){try{const e=this._el=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');e.setAttribute('playsinline','');e.loop=false;const p=e.play();p&&p.catch(()=>{})}catch(e){}}
+  if(this.ctx&&this.ctx.state!=='running'){try{this.ctx.resume()}catch(e){}}
+  if(this.ctx){try{const b=this.ctx.createBuffer(1,1,22050),s=this.ctx.createBufferSource();s.buffer=b;s.connect(this.ctx.destination);s.start(0)}catch(e){}}},
+ init(){if(this.ctx){this.unlock();return}try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=this.ctx=new C({latencyHint:'playback'});this.unlock();
   const comp=c.createDynamicsCompressor();comp.threshold.value=-14;comp.ratio.value=4;comp.connect(c.destination);this.master=c.createGain();this.master.connect(comp);
   this.mus=c.createGain();this.sfx=c.createGain();this.amb=c.createGain();[this.mus,this.sfx,this.amb].forEach(g=>g.connect(this.master));this.vol();
   this.nb=this.noiseBuf(2);for(const k in TR){const g=c.createGain();g.gain.value=0;g.connect(this.mus);const t={k,g,lv:0,tg:0,next:0,step:0,...TR[k]};
    if(k==='amapiano'){t.inG=c.createGain();t.outG=c.createGain();t.outG.gain.value=0;const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=380;g.disconnect();g.connect(t.inG);g.connect(lp);lp.connect(t.outG);t.inG.connect(this.mus);t.outG.connect(this.mus)}this.T[k]=t}
-  this.ambient();if(this.want)this.setTrack(this.want)}catch(e){console.warn('audio',e);this.ctx=null}},
- vol(){if(!this.ctx)return;const m=SET.snd?1:0,t=this.ctx.currentTime;this.master.gain.setTargetAtTime(m*.9,t,.05);this.mus.gain.setTargetAtTime(SET.vm??.7,t,.05);this.sfx.gain.setTargetAtTime(SET.vs??.8,t,.05);this.amb.gain.setTargetAtTime(SET.va??.6,t,.05)},
+  this.ambient();if(this.want){const w=this.want;this.cur=null;this.setTrack(w)}this.renderAll()}catch(e){console.warn('audio',e);this.ctx=null}},
+ // pre-render each loop offline into a seamless looping AudioBuffer (reliable; no JS timing needed)
+ async renderAll(){const order=[this.want||'title','city','amapiano','calm','tense','title'];for(const k of [...new Set(order)]){try{await this.renderTrack(k)}catch(e){console.warn('render',k,e)}}},
+ async renderTrack(k){const t=this.T[k];if(!t||t.buf)return;const OC=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!OC)return;const sr=22050,sd=60/t.bpm/4,steps=16*8,len=Math.ceil(steps*sd*sr);
+  const off=new OC(2,len,sr),R={ctx:off,osc:this.osc,nz:this.nz};R.nb=this.noiseBuf.call({ctx:off},2);const bus=off.createGain();bus.connect(off.destination);
+  for(let i=0;i<steps;i++){try{t.fn.call(R,i,i*sd+.001,bus,sd)}catch(e){}}const buf=await off.startRendering();let pk=0;for(let c=0;c<buf.numberOfChannels;c++){const d=buf.getChannelData(c);for(let i=0;i<d.length;i++){const a=Math.abs(d[i]);if(a>pk)pk=a}}
+  t.buf=buf;const src=this.ctx.createBufferSource();src.buffer=buf;src.loop=true;const ng=this.ctx.createGain();ng.gain.value=pk>0?.85/pk:1;src.connect(ng);ng.connect(t.g);src.start();t.src=src;this.rendered=(this.rendered||0)+1},
+ test(){this.init();if(!this.ctx)return'no audio support';const t=this.ctx.currentTime;[60,64,67,72].forEach((m,i)=>this.osc('triangle',mf(m),t+i*.12,.6,.35,this.mus,{lp:3000}));return this.ctx.state},
+ vol(){if(!this.ctx)return;const m=SET.snd?1:0,t=this.ctx.currentTime;this.master.gain.setTargetAtTime(m*.9,t,.05);this.mus.gain.setTargetAtTime(+(SET.vm??.8),t,.05);this.sfx.gain.setTargetAtTime(SET.vs??.8,t,.05);this.amb.gain.setTargetAtTime(SET.va??.6,t,.05)},
  on(){this.vol()},
  get state(){return this.ctx?this.ctx.state:'none'},
  noiseBuf(d){const c=this.ctx,n=c.sampleRate*d|0,b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=Math.random()*2-1;return b},
@@ -42,16 +52,16 @@ const A={ctx:null,cur:null,club:0,dist:null,loops:{},T:{},
  setClub(v){this.club=v},
  // ---- ambience ----
  ambient(){const c=this.ctx,mk=(type,f,q,v)=>{const s=c.createBufferSource();s.buffer=this.nb;s.loop=true;const fl=c.createBiquadFilter();fl.type=type;fl.frequency.value=f;fl.Q.value=q;const g=c.createGain();g.gain.value=0;const out=c.createGain();out.gain.value=v;s.connect(fl);fl.connect(g);g.connect(out);out.connect(this.amb);s.start();return{g,fl,out}};
-  this.AM={crowd:mk('bandpass',700,.6,.35),traffic:mk('lowpass',180,.7,.6),wind:mk('bandpass',900,2,.25),waves:mk('lowpass',650,.5,.5)};
+  this.AM={crowd:mk('bandpass',700,.6,.14),traffic:mk('lowpass',180,.7,.22),wind:mk('bandpass',900,2,.1),waves:mk('lowpass',650,.5,.2)};
   const lfo=(f,dest,amt,base)=>{const o=c.createOscillator(),g=c.createGain();o.frequency.value=f;g.gain.value=amt;o.connect(g);g.connect(dest);o.start();dest.value=base};
-  lfo(.11,this.AM.waves.out.gain,.35,.45);lfo(.07,this.AM.wind.fl.frequency,500,900);lfo(.3,this.AM.crowd.out.gain,.08,.3)},
+  lfo(.11,this.AM.waves.out.gain,.14,.18);lfo(.07,this.AM.wind.fl.frequency,500,900);lfo(.3,this.AM.crowd.out.gain,.04,.12)},
  setDistrict(d){if(!this.ctx||this.dist===d)return;this.dist=d;const t=this.ctx.currentTime,G={yaba:{crowd:1,traffic:.5,wind:0,waves:0},vi:{crowd:.35,traffic:1,wind:.8,waves:.1},lekki:{crowd:.2,traffic:.35,wind:.5,waves:1},in:{crowd:.12,traffic:.12,wind:0,waves:0},title:{crowd:.4,traffic:.3,wind:.2,waves:.2}}[d]||{};
   for(const k in this.AM)this.AM[k].g.gain.setTargetAtTime(G[k]||0,t,.8)},
  tick(){const c=this.ctx;if(!c||c.state!=='running')return;const now=c.currentTime;
   for(const k in this.T){const t=this.T[k];let tg=t.tg;if(k==='amapiano'&&this.club>0&&this.cur!=='amapiano')tg=1;
-   if(k==='amapiano'){t.inG.gain.setTargetAtTime(this.cur==='piano'?1:0,now,.4);t.outG.gain.setTargetAtTime(this.cur==='piano'?0:this.club*.9,now,.4)}
+   if(k==='amapiano'){t.inG.gain.setTargetAtTime(this.cur==='amapiano'?1:0,now,.4);t.outG.gain.setTargetAtTime(this.cur==='amapiano'?0:this.club*.9,now,.4)}
    let lvl=tg;if(k==='city'&&this.club>0)lvl*=1-this.club*.6;t.g.gain.setTargetAtTime(lvl*t.v,now,.6);t.lv+=(tg-t.lv)*.02;
-   if(tg<=0&&t.lv<.01){t.next=0;continue}const sd=60/t.bpm/4;if(t.next<now)t.next=now+.06;while(t.next<now+.3){try{t.fn.call(this,t.step,t.next,t.g,sd)}catch(e){}t.step++;t.next+=sd}}
+   if(t.buf||(tg<=0&&t.lv<.01)){t.next=0;continue}const sd=60/t.bpm/4;if(t.next<now)t.next=now+.06;while(t.next<now+.3){try{t.fn.call(this,t.step,t.next,t.g,sd)}catch(e){}t.step++;t.next+=sd}}
   if(this.dist==='yaba'&&Math.random()<.003)this.horn(.25);if(this.dist==='lekki'&&Math.random()<.01){const t=now,f=2200+Math.random()*1500;for(let i=0;i<3;i++)this.osc('sine',f,t+i*.09,.07,.05,this.amb,{f2:f*1.3})}}
 };
 // ---- instruments ----

@@ -86,3 +86,4 @@ body.lbx #hud,body.lbx #act,body.lbx #phoneBtn,body.lbx #tip,body.lbx #toast,bod
 .qlog ul{margin:2px 0 8px;padding-left:18px;font-weight:600;font-size:13px}.qlog p{margin:6px 0}
 .tcard>button small{display:block;font-size:12px;opacity:.85}
 @media(max-width:420px){#where{max-width:30vw}#hl .bars{grid-template-columns:1fr 1fr}.st s{width:36px}}
+#sndBan{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;background:#ffd400;padding:10px 16px;font-size:15px;animation:blink 1.2s infinite}
