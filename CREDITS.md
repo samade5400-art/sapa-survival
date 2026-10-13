@@ -16,3 +16,6 @@ CC0 needs no attribution; we credit the author anyway.
 
 ## Everything else
 The city, vehicles, interiors, music and sound are generated in code (Three.js r160, WebAudio) for Naija Republic.
+
+## Font
+Outfit by The Outfit Project Authors, SIL Open Font License 1.1 (assets/fonts/OFL.txt), bundled from Google Fonts.
